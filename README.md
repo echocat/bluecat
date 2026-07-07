@@ -208,13 +208,13 @@ The NVIDIA/xone modules only load under active Secure Boot **after** a
 successful MOK enrollment (see above).
 
 > **Boot splash / LUKS branding:** the boot splash and the LUKS unlock prompt
-> are rendered from the *initramfs*, not from `/usr`. The image build
-> regenerates the shipped initramfs after applying the bluecat Plymouth assets,
-> so a **fresh install** shows the bluecat splash on first boot. When
-> **rebasing onto an existing Fedora system**, the old initramfs may be kept
-> until it is regenerated; run `sudo rpm-ostree initramfs --enable` to rebuild
-> it from the bluecat deployment. The running system (KDE "About", shutdown
-> splash) is branded regardless.
+> are rendered from the *initramfs*, not from `/usr`. The ISO Kickstart runs
+> `rpm-ostree initramfs --enable` against the installed sysroot, so a **fresh
+> install** shows the bluecat splash on first boot. When **rebasing onto an
+> existing Fedora system**, the old initramfs may be kept until it is
+> regenerated; run `sudo rpm-ostree initramfs --enable` to rebuild it from the
+> bluecat deployment. The running system (KDE "About", shutdown splash) is
+> branded regardless.
 
 ---
 

@@ -46,7 +46,14 @@ network --bootproto=dhcp --device=link --activate --onboot=on
 #   --no-signature-verification : we rely on TLS transport security only; the
 #                    images are not ostree/sigstore signed yet. Harden later by
 #                    signing on push and configuring a policy here.
-ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --no-signature-verification
+ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --no-signature-verification --stateroot=bluecat
+
+# The boot splash and LUKS prompt are rendered from the initramfs. Regenerate it
+# through rpm-ostree against the installed sysroot so first boot uses the bluecat
+# Plymouth assets without bypassing ostree/bootc's initramfs integration.
+%post --nochroot --erroronfail --log=/mnt/sysimage/root/bluecat-initramfs.log
+rpm-ostree --sysroot=/mnt/sysimage initramfs --enable
+%end
 
 # Reboot and eject the media when the install finishes.
 reboot --eject

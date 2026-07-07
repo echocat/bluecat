@@ -58,15 +58,15 @@ and commit the result whenever a source SVG changes.
   rendered from the initramfs, which bakes in the Plymouth theme at the time it
   is generated. Consequences:
   - **Fresh install** (Anaconda / bootc-installer from the image): the
-    image build regenerates the shipped initramfs from the bluecat `/usr` ->
-    boot splash shows bluecat.
+    ISO Kickstart runs `rpm-ostree initramfs --enable` against the installed
+    sysroot -> boot splash shows bluecat.
   - **Rebase onto an existing Fedora system**: the old initramfs (with Fedora's
     watermark) is kept until it is regenerated, so the boot splash may still
     show Fedora. A user can force it with `sudo rpm-ostree initramfs --enable`
     (regenerates the initramfs from the current deployment).
-  - The image build regenerates the existing shipped initramfs after the
-    Plymouth watermark is replaced. This is needed because first boot cannot
-    read updated Plymouth assets from `/usr` until after the initramfs phase.
+  - We do **not** rebuild the initramfs with plain `dracut` during the container
+    build, because that can omit ostree/bootc's prepare-root integration and
+    break switch-root.
 - **SDDM**: the logo assets are provided under `usr/share/sddm/themes/bluecat/`.
   Wiring a specific SDDM theme/config to display them is left as a documented
   step, as it depends on the chosen SDDM theme.

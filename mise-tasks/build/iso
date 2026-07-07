@@ -145,7 +145,7 @@ ${SUDO} ${ENGINE} run --rm --privileged \
   -w /work \
   "${ISO_BUILDER_IMAGE}" \
   bash -euo pipefail -c '
-    dnf install -y lorax librsvg2-tools cpio gzip >/dev/null
+    dnf install -y lorax librsvg2-tools cpio gzip isomd5sum >/dev/null
 
     # --- build the Anaconda product.img ---------------------------------
     PROD=/tmp/product
@@ -198,6 +198,11 @@ ${SUDO} ${ENGINE} run --rm --privileged \
         -rm /Fedora-Legal-README.txt -- >/dev/null 2>&1 || \
         echo "    WARNING: could not remove Fedora-Legal-README.txt"
     fi
+
+    # The GRUB "Test this media" entry runs checkisomd5 via rd.live.check.
+    # Implant the checksum after every ISO mutation so that check can pass.
+    implantisomd5 --force --supported-iso "${OUT_ISO}"
+    checkisomd5 --verbose "${OUT_ISO}"
   '
 
 # mkksiso ran as root, so the ISO is root-owned; hand it back to the caller.
