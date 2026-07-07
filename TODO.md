@@ -47,10 +47,12 @@ Package/image customization has been added in `container/image-setup.sh`:
 - KDE Plasma's default application launcher icon is mapped from the bluecat
   symbol to the standard `start-here` / `start-here-kde` icon names, including
   Breeze theme slots when present.
-- The ISO Kickstart runs `rpm-ostree --sysroot=/mnt/sysimage initramfs --enable`
-  after `ostreecontainer`, so fresh ISO installs regenerate the initramfs via
-  rpm-ostree's ostree/bootc-aware path and show the bluecat LUKS/early-boot
-  splash on first boot.
+- The image build regenerates the shipped initramfs with `dracut --no-hostonly`
+  and `--add ostree` after applying the bluecat Plymouth watermark, so fresh ISO
+  installs show the bluecat LUKS/early-boot splash on first boot while keeping
+  ostree/bootc switch-root support.
+- Do not add a `%post` call to `rpm-ostree initramfs --enable`; it fails in the
+  installer context because `rpm-ostreed` cannot be activated there.
 
 Build task structure has been split:
 
@@ -67,8 +69,7 @@ Netinstall ISO work is implemented:
 - The default `ISO_IMAGE_TAG` follows the Fedora major version, for example
   `44`.
 - The install uses `ostreecontainer --no-signature-verification`.
-- The install uses `--stateroot=bluecat` and a `%post --nochroot` rpm-ostree
-  initramfs regeneration step for first-boot Plymouth/LUKS branding.
+- The install uses `--stateroot=bluecat`.
 - The output is `output/bluecat-netinstall.iso` locally.
 
 Full ISO/Anaconda branding is implemented:

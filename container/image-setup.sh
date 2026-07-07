@@ -376,7 +376,9 @@ fi
 # after the last rpm-ostree transaction, right before `ostree container commit`.
 #
 # We also do NOT run `plymouth-set-default-theme -R` (it regenerates the theme
-# dir and drops the file; the initrd is rebuilt at deploy time anyway).
+# dir and drops the file). Instead, after copying the watermark, rebuild the
+# shipped initramfs with dracut's OSTree module explicitly enabled. A plain
+# dracut rebuild can omit ostree-prepare-root and break switch-root.
 PLY_SRC="/usr/share/bluecat/branding/plymouth-watermark.png"
 PLY_DST="/usr/share/plymouth/themes/spinner/watermark.png"
 if [[ -e "${PLY_SRC}" && -d /usr/share/plymouth/themes/spinner ]]; then
@@ -385,6 +387,32 @@ if [[ -e "${PLY_SRC}" && -d /usr/share/plymouth/themes/spinner ]]; then
 else
   echo "    NOTE: no staged Plymouth watermark (${PLY_SRC}); run 'mise branding'" \
        "and commit the generated system_files/ assets."
+fi
+
+echo "==> Rebuilding initramfs for bluecat boot splash"
+if ! command -v dracut >/dev/null 2>&1; then
+  echo "ERROR: dracut not found; cannot rebuild initramfs for bluecat branding." >&2
+  exit 1
+fi
+if [[ ! -x /usr/lib/ostree/ostree-prepare-root ]]; then
+  echo "ERROR: ostree-prepare-root not found; refusing to rebuild an initramfs without OSTree support." >&2
+  exit 1
+fi
+
+initramfs_count=0
+for kernel_module_dir in /usr/lib/modules/*/; do
+  kver="$(basename "${kernel_module_dir}")"
+  [[ -f "/usr/lib/modules/${kver}/vmlinuz" ]] || continue
+
+  initramfs_count=$((initramfs_count + 1))
+  echo "    dracut ${kver}"
+  dracut --force --no-hostonly --add ostree \
+    "/usr/lib/modules/${kver}/initramfs.img" "${kver}"
+done
+
+if (( initramfs_count == 0 )); then
+  echo "ERROR: no shipped kernel found under /usr/lib/modules; cannot rebuild initramfs." >&2
+  exit 1
 fi
 
 echo "==> image-setup.sh done"
