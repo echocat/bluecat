@@ -1,0 +1,128 @@
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
+//MISE description="Render the echocat branding assets from SVG into system_files/"
+//MISE dir="{{config_root}}"
+//MISE tools={deno="latest"}
+// ===========================================================================
+// Renders the bluecat / echocat branding from the source SVGs in
+// assets/branding/ into the paths the image expects, under system_files/.
+// The generated files are meant to be committed; the build then simply copies
+// system_files/ into the image (see Containerfile) and image-setup.sh wires up
+// os-release LOGO / Plymouth / SDDM.
+//
+// SVG -> PNG rendering is done in pure Deno via the resvg WebAssembly build
+// (@resvg/resvg-wasm) — no native CLI dependency (no rsvg-convert/ImageMagick).
+//
+//   mise branding      # (re)generate all branding assets
+//
+// Re-run this whenever the source SVGs in assets/branding/ change.
+// ===========================================================================
+import { initWasm, Resvg } from "npm:@resvg/resvg-wasm@2.6.2";
+
+// --- sources ---------------------------------------------------------------
+const SRC_DIR = "assets/branding";
+const SRC_SYMBOL = `${SRC_DIR}/bluecat-logo-symbol.svg`; // square mark
+const SRC_FULL = `${SRC_DIR}/bluecat-logo.svg`; // mark + wordmark
+const SRC_WHITE = `${SRC_DIR}/bluecat-logo-white.svg`; // white mark + wordmark
+
+// --- output roots (inside system_files/, copied into the image at /) --------
+const OUT = "system_files";
+const PIXMAPS = `${OUT}/usr/share/pixmaps`;
+const HICOLOR = `${OUT}/usr/share/icons/hicolor`;
+const SDDM_ASSETS = `${OUT}/usr/share/sddm/themes/bluecat`;
+// The Plymouth watermark must NOT be shipped straight into the rpm-managed
+// theme dir (/usr/share/plymouth/themes/spinner): a later `rpm-ostree install`
+// re-checks out that package directory and drops non-packaged files. We stage
+// it in our own (non-packaged) branding dir; image-setup.sh copies it into the
+// spinner theme AFTER the last rpm-ostree transaction.
+const BRANDING = `${OUT}/usr/share/bluecat/branding`;
+
+// Icon name referenced by os-release LOGO (see container/image-setup.sh).
+const ICON_NAME = "bluecat-logo-icon";
+// Icon sizes for the hicolor theme.
+const ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256];
+
+// The resvg wasm module. --allow-net is used to fetch it (accepted trade-off);
+// it is cached by Deno after the first run.
+const WASM_URL = "https://esm.sh/@resvg/resvg-wasm@2.6.2/index_bg.wasm";
+
+// ---------------------------------------------------------------------------
+async function ensureDir(path: string): Promise<void> {
+  await Deno.mkdir(path, { recursive: true });
+}
+
+async function readSvg(path: string): Promise<string> {
+  try {
+    return await Deno.readTextFile(path);
+  } catch {
+    console.error(`ERROR: missing source SVG: ${path}`);
+    console.error("       Place the echocat branding SVGs in assets/branding/.");
+    Deno.exit(1);
+  }
+}
+
+// Render an SVG string to a PNG of the given pixel width (height keeps aspect).
+function renderPng(svg: string, width: number): Uint8Array {
+  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: width } });
+  return resvg.render().asPng();
+}
+
+async function writeFile(path: string, data: Uint8Array): Promise<void> {
+  await ensureDir(path.substring(0, path.lastIndexOf("/")));
+  await Deno.writeFile(path, data);
+  console.log(`    wrote ${path}`);
+}
+
+async function copyText(src: string, dest: string): Promise<void> {
+  await ensureDir(dest.substring(0, dest.lastIndexOf("/")));
+  await Deno.writeTextFile(dest, await Deno.readTextFile(src));
+  console.log(`    wrote ${dest}`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("==> Initializing resvg (wasm)");
+await initWasm(fetch(new URL(WASM_URL)));
+
+const symbolSvg = await readSvg(SRC_SYMBOL);
+const fullSvg = await readSvg(SRC_FULL);
+const whiteSvg = await readSvg(SRC_WHITE);
+
+// --- 1. os-release LOGO + app icon (square symbol) --------------------------
+// Ship the SVG itself as the scalable icon, plus hicolor PNGs at fixed sizes.
+console.log("==> Icon (os-release LOGO / KDE About / app icon)");
+await copyText(SRC_SYMBOL, `${PIXMAPS}/${ICON_NAME}.svg`);
+// KDE's kinfocenter "About this System" reads a fixed file path from
+// kcm-about-distrorc (LogoPath=), not the os-release LOGO icon name, so it
+// needs a real raster file. Ship a square PNG next to the SVG for it.
+await writeFile(`${PIXMAPS}/${ICON_NAME}.png`, renderPng(symbolSvg, 256));
+// Also ship a scalable hicolor entry.
+await copyText(SRC_SYMBOL, `${HICOLOR}/scalable/apps/${ICON_NAME}.svg`);
+for (const size of ICON_SIZES) {
+  const png = renderPng(symbolSvg, size);
+  await writeFile(`${HICOLOR}/${size}x${size}/apps/${ICON_NAME}.png`, png);
+}
+
+// --- 2. full logo (mark + wordmark) as a general-purpose pixmap -------------
+console.log("==> Full logo pixmap (mark + wordmark)");
+await copyText(SRC_FULL, `${PIXMAPS}/bluecat-logo.svg`);
+await writeFile(`${PIXMAPS}/bluecat-logo.png`, renderPng(fullSvg, 838));
+
+// --- 3. Plymouth watermark (boot splash) ------------------------------------
+// Kinoite uses the "bgrt" theme, which shows the watermark.png from the
+// "spinner" theme dir. That dir is rpm-managed, so we stage the watermark in
+// our own branding dir and let image-setup.sh place it into spinner/ AFTER the
+// last rpm-ostree transaction (otherwise it gets dropped). We use the colored
+// wordmark (#006fb3) at a modest width so it does not dominate the splash.
+console.log("==> Plymouth watermark (staged in branding dir)");
+await writeFile(`${BRANDING}/plymouth-watermark.png`, renderPng(fullSvg, 150));
+
+// --- 4. SDDM login logo -----------------------------------------------------
+// Provide the logo as an asset; wiring a specific SDDM theme to show it is
+// documented (see docs / assets/branding/README.md). We ship the white
+// wordmark (login screens tend to be dark) plus the symbol.
+console.log("==> SDDM login logo assets");
+await writeFile(`${SDDM_ASSETS}/logo.png`, renderPng(whiteSvg, 500));
+await writeFile(`${SDDM_ASSETS}/symbol.png`, renderPng(symbolSvg, 256));
+
+console.log();
+console.log("==> Branding assets generated under system_files/.");
+console.log("    Review + commit the generated files.");

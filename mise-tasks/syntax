@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+#MISE description="Quick bash syntax check of all scripts (no tools required)"
+#MISE dir="{{config_root}}"
+set -euo pipefail
+# Only syntax-check bash scripts; skip non-bash file-tasks (e.g. Deno keys).
+while IFS= read -r f; do
+  read -r first < "${f}" || true
+  case "${first}" in
+    *bash*|*"/sh"*|*"env sh"*)
+      bash -n "${f}" && echo "OK  ${f}"
+      ;;
+  esac
+done < <(find container -name '*.sh' -type f; find mise-tasks system_files -type f)

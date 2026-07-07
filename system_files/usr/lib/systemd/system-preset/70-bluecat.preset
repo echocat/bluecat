@@ -1,0 +1,2 @@
+enable bluecat-add-flathub.service
+enable bluecat-install-brave.service

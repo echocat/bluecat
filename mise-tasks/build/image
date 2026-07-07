@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+#MISE description="Build the bluecat OCI image locally (no push)"
+#MISE dir="{{config_root}}"
+#MISE depends=["verify-keys"]
+# =============================================================================
+# Builds the bluecat image locally (podman preferred, docker as fallback).
+# Does NOT push. Tested on Fedora 44.
+#
+# Runs ROOTLESS on purpose: the rootless user storage uses native overlay diff,
+# which is dramatically faster than the rootful storage on this host (the
+# system storage.conf forces overlay metacopy=on with "Native Overlay Diff:
+# false", which makes even COPY layers crawl - especially under WSL2). The
+# image therefore lands in the user storage; `mise build:iso` transfers it into
+# the root storage on demand (see that task).
+#
+# Prerequisite: certs/ exists (run `mise keys` first).
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+source ./build.env
+
+# --- Determine container engine ---------------------------------------------
+if command -v podman >/dev/null 2>&1; then
+  ENGINE="podman"
+elif command -v docker >/dev/null 2>&1; then
+  ENGINE="docker"
+else
+  echo "ERROR: neither podman nor docker found." >&2
+  exit 1
+fi
+echo "==> Engine: ${ENGINE}"
+
+# --- podman without a working systemd user session --------------------------
+# In environments without a working systemd user session (many containers and
+# CI runners), rootless podman fails with "sd-bus call: Permission denied"
+# because crun tries to talk to systemd. Detect that case and fall back to the
+# cgroupfs cgroup manager. On a normal Fedora desktop the session works and
+# this flag is NOT added.
+# Override explicitly with PODMAN_CGROUP_MANAGER=systemd|cgroupfs if needed.
+# GLOBAL_ARGS are placed BEFORE the `build` subcommand (global engine flags).
+GLOBAL_ARGS=()
+if [[ "${ENGINE}" == "podman" ]]; then
+  cgroup_manager="${PODMAN_CGROUP_MANAGER:-}"
+  if [[ -z "${cgroup_manager}" ]]; then
+    if systemctl --user show-environment >/dev/null 2>&1; then
+      cgroup_manager="systemd"
+    else
+      echo "    no working systemd user session -> --cgroup-manager=cgroupfs"
+      cgroup_manager="cgroupfs"
+    fi
+  fi
+  GLOBAL_ARGS+=(--cgroup-manager="${cgroup_manager}")
+fi
+
+# Note: the signing material is validated by the verify-keys task,
+# which runs as a dependency of this task (see #MISE depends above).
+
+# --- always build against the up-to-date upstream ---------------------------
+# Two things keep every build current:
+#   1. --pull:      always use the latest upstream base image. podman supports
+#                   "newer" (re-pull only if the registry digest changed);
+#                   docker/BuildKit only knows a boolean pull, so use "always".
+#   2. --no-cache:  never reuse cached RUN layers, so `dnf` always fetches the
+#                   latest RPMs (RPM Fusion, NVIDIA, kernel-devel) and the
+#                   kernel modules are recompiled every time.
+# These are `build` SUBCOMMAND flags, so they go AFTER `build`.
+# Override the pull policy with PULL_POLICY if needed.
+BUILD_ARGS=()
+if [[ -n "${PULL_POLICY:-}" ]]; then
+  BUILD_ARGS+=(--pull="${PULL_POLICY}")
+elif [[ "${ENGINE}" == "podman" ]]; then
+  BUILD_ARGS+=(--pull=newer)
+else
+  BUILD_ARGS+=(--pull=always)
+fi
+BUILD_ARGS+=(--no-cache)
+
+# The build always produces the fixed local tag. `mise push` re-tags this
+# image to the real (timestamped / release / pr) tags and pushes them.
+LOCAL_REF="${IMAGE_REGISTRY}/${IMAGE_NAME}:${LOCAL_IMAGE_TAG}"
+echo "==> Building ${LOCAL_REF}"
+
+# BuildKit secret for the private key (does not land in the layer history).
+${ENGINE} "${GLOBAL_ARGS[@]}" build \
+  "${BUILD_ARGS[@]}" \
+  --secret "id=mok_key,src=${MOK_KEY}" \
+  --build-arg "FEDORA_MAJOR_VERSION=${FEDORA_MAJOR_VERSION}" \
+  --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+  --build-arg "XONE_REPO=${XONE_REPO}" \
+  --build-arg "XONE_REF=${XONE_REF}" \
+  --build-arg "RUSTDESK_VERSION=${RUSTDESK_VERSION}" \
+  --tag "${LOCAL_REF}" \
+  --file Containerfile \
+  .
+
+echo
+echo "==> Done: ${LOCAL_REF}"
+echo "    Inspect locally: ${ENGINE} images | grep bluecat"
+echo "    Push:            mise push release    (or: mise push pr <number>)"
+echo "    ISO:             mise build:iso   (transfers this image to the root storage internally)"

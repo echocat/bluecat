@@ -1,0 +1,27 @@
+[Unit]
+Description=Add the Flathub Flatpak repository (unfiltered) and deprioritize Fedora Flatpaks
+Documentation=https://github.com/echocat/bluecat
+# Run once; the marker is created on success below.
+ConditionPathExists=!/var/lib/flatpak/.bluecat-flathub-initialized
+# Fedora's own repo setup runs here too; order after it so both remotes exist.
+After=flatpak-add-fedora-repos.service
+Before=bluecat-install-brave.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Add Flathub system-wide from our own, unfiltered .flatpakrepo (the Fedora one
+# ships a Filter= that hides most of the catalog). --if-not-exists is safe if a
+# previous boot already added it.
+ExecStart=/usr/bin/flatpak remote-add --system --if-not-exists flathub /usr/share/bluecat/flathub.flatpakrepo
+# Make sure the remote is enabled and unfiltered even if it pre-existed.
+ExecStart=/usr/bin/flatpak remote-modify --system --enable --no-filter flathub
+# Deprioritize the Fedora Flatpak remote so Flathub wins for duplicate apps
+# (higher prio number wins in flatpak; default is 1). Ignore failure if the
+# fedora remote is absent.
+ExecStart=-/usr/bin/flatpak remote-modify --system --prio=2 flathub
+ExecStart=-/usr/bin/flatpak remote-modify --system --prio=1 fedora
+ExecStartPost=/usr/bin/touch /var/lib/flatpak/.bluecat-flathub-initialized
+
+[Install]
+WantedBy=multi-user.target

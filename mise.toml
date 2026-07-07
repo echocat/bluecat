@@ -1,0 +1,5 @@
+[tools]
+shellcheck = "0.10.0"
+hadolint = "2.12.0"
+yq = "4.44.3"
+deno = "2.9.1"

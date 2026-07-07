@@ -1,0 +1,9 @@
+[Main]
+Product=bluecat
+Version=@@VERSION@@
+BugURL=https://github.com/echocat/bluecat/issues
+IsFinal=True
+UUID=@@UUID@@
+Variant=Atomic
+[Compose]
+Lorax=bluecat

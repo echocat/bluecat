@@ -1,0 +1,16 @@
+# Kernel command-line arguments for the NVIDIA setup.
+#
+# This is the bootc-native way to ship kernel args with the image
+# (/usr/lib/bootc/kargs.d/*.toml). bootc applies them on deploy and
+# `bootc container lint` validates them at build time. We do NOT use
+# `rpm-ostree kargs`, which only works against a live deployment, not an image
+# build.
+#
+#   rd.driver.blacklist=nouveau  - keep the nouveau driver out of the initramfs
+#   modprobe.blacklist=nouveau   - keep it from loading later on the running system
+#   nvidia-drm.modeset=1         - enable NVIDIA DRM kernel mode setting
+kargs = [
+  "rd.driver.blacklist=nouveau",
+  "modprobe.blacklist=nouveau",
+  "nvidia-drm.modeset=1",
+]

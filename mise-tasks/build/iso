@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+#MISE description="Build a small network-install ISO (installs the pushed image via Anaconda)"
+#MISE dir="{{config_root}}"
+# =============================================================================
+# build:iso  -  network-install ISO (Anaconda + Kickstart)
+# =============================================================================
+# Produces a small Fedora boot ISO with an EMBEDDED Kickstart that installs the
+# bluecat bootc image from the registry over the network (`ostreecontainer`).
+#
+# Why not bootc-image-builder (bib): bib picks its build recipe from the
+# os-release ID and only knows fedora/centos/rhel. Our image is rebranded to
+# ID="bluecat", so bib fails with "could not find def file for distro
+# bluecat-44". Anaconda's ostreecontainer ignores ID, so this path keeps the
+# rebrand intact.
+#
+# The ISO is also rebranded away from Fedora: volume id (bluecat-44), GRUB menu
+# titles ("Install bluecat 44"), the root docs (own README.iso.txt, Fedora
+# legal readme removed) and the Anaconda installer itself (an Anaconda
+# product.img built from iso/anaconda-branding/ overrides the installer title
+# "BLUECAT 44 INSTALLATION" and the sidebar logo/colors).
+#
+# The OS payload is NOT baked into the ISO, so:
+#   * the ISO stays small, and
+#   * it stays valid across image changes - it always installs whatever is
+#     currently pushed under the configured tag.
+#
+# REQUIREMENT: the target image must already be pushed (see `mise push`) and the
+# registry must be reachable at install time. This task does NOT build or push
+# the image; it only builds the ISO.
+#
+# Steps:
+#   1. render iso/bluecat.ks from iso/bluecat.ks.in (substitute the image ref)
+#   2. download the upstream Fedora netinst boot ISO (cached under output/)
+#   3. run `mkksiso` inside a Fedora container (lorax) to embed the Kickstart
+#
+# Start it as a NORMAL user (`mise build:iso`). The mkksiso step (step 3) uses
+# sudo internally because it needs a loop device (rootless podman cannot attach
+# loop devices). The rest runs as your user.
+#
+# Output: output/bluecat-netinstall.iso
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+source ./build.env
+
+# --- container engine (podman preferred, needed to run mkksiso portably) ----
+if command -v podman >/dev/null 2>&1; then
+  ENGINE="podman"
+elif command -v docker >/dev/null 2>&1; then
+  ENGINE="docker"
+else
+  echo "ERROR: neither podman nor docker found." >&2
+  exit 1
+fi
+echo "==> Engine: ${ENGINE}"
+
+OUTPUT_DIR="output"
+BASE_ISO="${OUTPUT_DIR}/fedora-boot-${FEDORA_MAJOR_VERSION}.iso"
+OUT_ISO="${OUTPUT_DIR}/bluecat-netinstall.iso"
+KS_IN="iso/bluecat.ks.in"
+KS_OUT="iso/bluecat.ks"
+
+IMAGE_REF="${IMAGE_REGISTRY}/${IMAGE_NAME}:${ISO_IMAGE_TAG}"
+
+mkdir -p "${OUTPUT_DIR}"
+
+# --- 1. render the Kickstart ------------------------------------------------
+echo "==> Rendering Kickstart -> ${KS_OUT} (image ref: ${IMAGE_REF})"
+if [[ ! -f "${KS_IN}" ]]; then
+  echo "ERROR: Kickstart template ${KS_IN} not found." >&2
+  exit 1
+fi
+sed "s|@@IMAGE_REF@@|${IMAGE_REF}|g" "${KS_IN}" > "${KS_OUT}"
+
+# --- 2. download the upstream Fedora boot ISO (cached) ----------------------
+if [[ -f "${BASE_ISO}" ]]; then
+  echo "==> Base ISO already present: ${BASE_ISO} (delete it to force re-download)"
+else
+  echo "==> Downloading base ISO: ${ISO_BASE_URL}"
+  # -L follows the Fedora mirror redirect; write to a temp file then move so an
+  # interrupted download does not leave a half file that looks cached.
+  curl -fSL --retry 3 -o "${BASE_ISO}.part" "${ISO_BASE_URL}"
+  mv "${BASE_ISO}.part" "${BASE_ISO}"
+fi
+
+# --- 3. embed the Kickstart with mkksiso (inside a Fedora container) --------
+# mkksiso (from lorax) does not run on non-Fedora hosts, so run it in a Fedora
+# container.
+#
+# This MUST run as ROOT (sudo podman): mkksiso builds the EFI boot image via
+# `losetup` (loop device). Rootless podman cannot attach loop devices - the
+# loop ioctl fails with "Permission denied" even with --privileged and the
+# devices passed through - so mkefiboot fails. Rootful podman can. Unlike the
+# image build, this does not hit the slow rootful metacopy path (no COPY
+# layers here), so running it rootful is fine.
+#
+# We also pass the host's loop devices into the container explicitly.
+if [[ "${EUID}" -ne 0 ]]; then
+  if command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  else
+    echo "ERROR: this step needs root (sudo) for mkksiso's loop devices." >&2
+    exit 1
+  fi
+else
+  SUDO=""
+fi
+
+LOOP_DEVICES=()
+for d in /dev/loop-control /dev/loop[0-9]*; do
+  [[ -e "${d}" ]] && LOOP_DEVICES+=(--device "${d}")
+done
+
+# Branding inputs (rebrand the whole ISO away from Fedora):
+#   * Anaconda installer:  an Anaconda product.img (built in-container) that
+#     overlays /.buildstamp (installer title -> "BLUECAT 44 INSTALLATION") plus
+#     the sidebar logo and GTK css over the running installer.
+#   * GRUB boot menu:       -R replaces "Fedora <ver>" with "bluecat <ver>".
+#   * ISO volume id:        -V bluecat-<ver> (mkksiso rewrites the grub refs).
+#   * Root docs:            our own README.iso.txt is added next to LICENSE.
+VOLID="bluecat-${FEDORA_MAJOR_VERSION}"
+BRAND_DIR="iso/anaconda-branding"
+LOGO_SVG="assets/branding/bluecat-logo-white.svg"
+
+echo "==> Embedding Kickstart + rebranding with mkksiso (in ${ISO_BUILDER_IMAGE}, as root)"
+# A previous run produces a root-owned ISO; remove it with sudo so this run can
+# recreate it. Also chown the fresh ISO back to the invoking user afterwards.
+${SUDO} rm -f "${OUT_ISO}"
+
+# Everything runs inside the Fedora container: build the Anaconda product.img
+# from our branding sources, then run mkksiso with the branding options.
+# Values are passed in as environment variables to keep quoting sane.
+${SUDO} ${ENGINE} run --rm --privileged \
+  --pull=newer \
+  "${LOOP_DEVICES[@]}" \
+  -e KS_OUT="${KS_OUT}" \
+  -e BASE_ISO="${BASE_ISO}" \
+  -e OUT_ISO="${OUT_ISO}" \
+  -e VOLID="${VOLID}" \
+  -e VERSION="${FEDORA_MAJOR_VERSION}" \
+  -e BRAND_DIR="${BRAND_DIR}" \
+  -e LOGO_SVG="${LOGO_SVG}" \
+  -v "${PWD}:/work:z" \
+  -w /work \
+  "${ISO_BUILDER_IMAGE}" \
+  bash -euo pipefail -c '
+    dnf install -y lorax librsvg2-tools cpio gzip >/dev/null
+
+    # --- build the Anaconda product.img ---------------------------------
+    PROD=/tmp/product
+    mkdir -p "${PROD}/usr/share/anaconda/pixmaps"
+
+    # Installer title comes from /.buildstamp (Product=/Version=).
+    sed -e "s|@@VERSION@@|${VERSION}|g" \
+        -e "s|@@UUID@@|$(date -u +%Y%m%d%H%M).bluecat|g" \
+        "${BRAND_DIR}/buildstamp.in" > "${PROD}/.buildstamp"
+
+    # GTK css override (bluecat color + logo).
+    cp "${BRAND_DIR}/anaconda-gtk.css" \
+       "${PROD}/usr/share/anaconda/anaconda-gtk.css"
+
+    # Sidebar logo rendered from the white bluecat logo (fits the 150px slot).
+    rsvg-convert -w 146 -h 32 -f png -o \
+      "${PROD}/usr/share/anaconda/pixmaps/sidebar-logo.png" "${LOGO_SVG}"
+
+    # Pack it as a gzipped cpio newc archive (what Anaconda expects).
+    # mkksiso maps each -a path to its basename at the ISO root, so to land the
+    # product.img at /images/product.img we hand it a whole "images" directory.
+    mkdir -p /tmp/add/images
+    ( cd "${PROD}" && find . | cpio -o -H newc --quiet | gzip -9 ) \
+      > /tmp/add/images/product.img
+    cp iso/README.iso.txt /tmp/add/README.iso.txt
+
+    # --- run mkksiso with branding --------------------------------------
+    # -V sets the volume id AND rewrites the grub stage2/LABEL references to
+    #    match, so we must NOT blindly -R "Fedora"->"bluecat" (that would also
+    #    corrupt the stage2 LABEL, which must equal the volume id). Only the
+    #    human-readable menu titles are replaced.
+    # -a images  -> merges our /images/product.img into the ISO
+    # -a README  -> adds /README.iso.txt at the ISO root
+    mkksiso \
+      --ks "${KS_OUT}" \
+      -V "${VOLID}" \
+      -R "Install Fedora ${VERSION}" "Install bluecat ${VERSION}" \
+      -R "Test this media & install Fedora ${VERSION}" "Test this media & install bluecat ${VERSION}" \
+      -R "Rescue a Fedora system" "Rescue a bluecat system" \
+      -a /tmp/add/images \
+      -a /tmp/add/README.iso.txt \
+      "${BASE_ISO}" "${OUT_ISO}"
+
+    # mkksiso can only add files, not remove them. Drop the Fedora legal readme
+    # so no Fedora-branded doc remains at the ISO root. -boot_image any keep
+    # preserves the (already correct) boot records while we edit the tree.
+    if osirrox -indev "${OUT_ISO}" -find /Fedora-Legal-README.txt >/dev/null 2>&1; then
+      xorriso -boot_image any keep \
+        -dev "${OUT_ISO}" \
+        -rm /Fedora-Legal-README.txt -- >/dev/null 2>&1 || \
+        echo "    WARNING: could not remove Fedora-Legal-README.txt"
+    fi
+  '
+
+# mkksiso ran as root, so the ISO is root-owned; hand it back to the caller.
+if [[ -n "${SUDO}" && -f "${OUT_ISO}" ]]; then
+  ${SUDO} chown "$(id -u):$(id -g)" "${OUT_ISO}"
+fi
+
+echo
+echo "==> Done: ${OUT_ISO}"
+if command -v du >/dev/null 2>&1 && [[ -f "${OUT_ISO}" ]]; then
+  echo "    Size: $(du -h "${OUT_ISO}" | cut -f1)"
+fi
+echo "    Installs: ${IMAGE_REF} (pulled from the registry at install time)"
+echo "    NOTE: that image must already be PUSHED (\`mise push\`) and the"
+echo "          registry must be reachable/public at install time."
+echo "    NOTE: MOK enrollment on the target machine is still required (see docs/)."

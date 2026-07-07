@@ -1,0 +1,116 @@
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
+//MISE description="Generate the Secure Boot MOK signing key (run once)"
+//MISE dir="{{config_root}}"
+//MISE tools={deno="latest"}
+// ===========================================================================
+// Generates the self-signed MOK (Machine Owner Key) ONCE, used to sign the
+// kernel modules for Secure Boot. Implemented in Deno (no host openssl needed);
+// the X.509 certificate is produced with @peculiar/x509 via Web Crypto.
+//
+//   certs/mok.key  -> PRIVATE key   (NEVER commit! blocked by .gitignore.)
+//   certs/mok.crt  -> PUBLIC cert (PEM, used for signing)
+//   certs/mok.der  -> PUBLIC cert (DER, for mokutil / firmware enrollment)
+//
+// For CI: store the content of certs/mok.key as secret MOK_KEY, and
+// certs/mok.crt / certs/mok.der as secrets MOK_CRT / MOK_DER_B64 (base64).
+// ===========================================================================
+import * as x509 from "npm:@peculiar/x509@1.12.3";
+
+// --- read the relevant values from build.env -------------------------------
+const buildEnv = await Deno.readTextFile("build.env");
+function envValue(name: string, fallback: string): string {
+  // Match lines like:  NAME="value"   (ignoring inline comments after the value)
+  const re = new RegExp(`^${name}="([^"]*)"`, "m");
+  const m = buildEnv.match(re);
+  return m ? m[1] : fallback;
+}
+
+const MOK_KEY = envValue("MOK_KEY", "certs/mok.key");
+const MOK_CERT_CRT = envValue("MOK_CERT_CRT", "certs/mok.crt");
+const MOK_CERT_DER = envValue("MOK_CERT_DER", "certs/mok.der");
+// Strip the surrounding slashes of the openssl-style subject (/CN=.../).
+const SUBJECT = envValue("MOK_SUBJECT", "/CN=echocat Secure Boot Signing/")
+  .replace(/^\//, "")
+  .replace(/\/$/, "");
+
+// --- guard: never overwrite an existing key --------------------------------
+async function exists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+if (await exists(MOK_KEY)) {
+  console.error(`ERROR: ${MOK_KEY} already exists.`);
+  console.error(
+    "       To regenerate, delete it manually first (note: the new public",
+  );
+  console.error(
+    "       cert then has to be enrolled into the firmware again!).",
+  );
+  Deno.exit(1);
+}
+
+await Deno.mkdir("certs", { recursive: true });
+
+// --- generate a 4096-bit RSA key + self-signed cert, valid 15 years ---------
+console.log("==> Generating 4096-bit RSA MOK, valid for 15 years");
+x509.cryptoProvider.set(globalThis.crypto);
+
+const alg: RsaHashedKeyGenParams = {
+  name: "RSASSA-PKCS1-v1_5",
+  hash: "SHA-256",
+  modulusLength: 4096,
+  publicExponent: new Uint8Array([1, 0, 1]),
+};
+const keys = await crypto.subtle.generateKey(alg, true, ["sign", "verify"]);
+
+const notBefore = new Date();
+const notAfter = new Date(notBefore.getTime() + 15 * 365 * 24 * 3600 * 1000);
+
+const cert = await x509.X509CertificateGenerator.createSelfSigned({
+  serialNumber: "01",
+  name: SUBJECT,
+  notBefore,
+  notAfter,
+  signingAlgorithm: alg,
+  keys,
+  extensions: [
+    // basicConstraints=critical,CA:FALSE
+    new x509.BasicConstraintsExtension(false, undefined, true),
+    // keyUsage=digitalSignature
+    new x509.KeyUsagesExtension(x509.KeyUsageFlags.digitalSignature, false),
+    // extendedKeyUsage=codeSigning,1.3.6.1.4.1.2312.16.1.2 (MOK module signing)
+    new x509.ExtendedKeyUsageExtension(
+      ["1.3.6.1.5.5.7.3.3", "1.3.6.1.4.1.2312.16.1.2"],
+      false,
+    ),
+  ],
+});
+
+// --- write PEM key, PEM cert, DER cert --------------------------------------
+const crtPem = cert.toString("pem");
+const pkcs8 = await crypto.subtle.exportKey("pkcs8", keys.privateKey);
+const keyPem = x509.PemConverter.encode(pkcs8, "PRIVATE KEY");
+const der = new Uint8Array(cert.rawData);
+
+await Deno.writeTextFile(MOK_KEY, keyPem + "\n");
+await Deno.writeTextFile(MOK_CERT_CRT, crtPem + "\n");
+await Deno.writeFile(MOK_CERT_DER, der);
+
+await Deno.chmod(MOK_KEY, 0o600);
+await Deno.chmod(MOK_CERT_CRT, 0o644);
+await Deno.chmod(MOK_CERT_DER, 0o644);
+
+console.log("==> Generating DER variant (for mokutil)");
+console.log();
+console.log("==> Done:");
+console.log(`    PRIVATE (do not commit):  ${MOK_KEY}`);
+console.log(`    PUBLIC (PEM):             ${MOK_CERT_CRT}`);
+console.log(`    PUBLIC (DER):             ${MOK_CERT_DER}`);
+console.log();
+console.log("Next step: enroll the public cert into the firmware (see README):");
+console.log(`    sudo mokutil --import ${MOK_CERT_DER}`);

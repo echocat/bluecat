@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Lint the Containerfile with hadolint"
+#MISE dir="{{config_root}}"
+set -euo pipefail
+hadolint Containerfile

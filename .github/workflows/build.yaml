@@ -1,0 +1,74 @@
+name: build:image
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: build-image-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    # Only run for: push/schedule on main or the "test image" label on a PR.
+    # Any other labeled event is ignored.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'test image')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v4
+
+      - name: Restore signing certificates from secrets
+        run: |
+          set -euo pipefail
+          mkdir -p certs
+          rm -rf certs/mok.*
+          printf '%s' "${{ secrets.MOK_KEY }}" > certs/mok.key
+          printf '%s' "${{ secrets.MOK_CRT }}" > certs/mok.crt
+          printf '%s' "${{ secrets.MOK_DER_B64 }}" | base64 -d > certs/mok.der
+          chmod 600 certs/mok.key
+          chmod 644 certs/mok.crt certs/mok.der
+          echo "signing certificates restored"
+
+      - name: Verify signing certificates
+        run: mise verify-keys
+
+      # build:image and push run rootless (fast native overlay diff). The ISO
+      # task is the only one that needs root, and it is not part of CI.
+      - name: Build
+        run: mise build:image
+
+      - name: Push (release, main only)
+        if: github.event_name == 'push' || github.event_name == 'schedule'
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG_RETENTION: "3"
+        run: mise push release
+
+      - name: Push (pr test image)
+        if: github.event_name == 'pull_request'
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mise push pr "${{ github.event.pull_request.number }}"
+
+      - name: Clean up (remove keys)
+        if: always()
+        run: rm -f certs/mok.key certs/mok.crt certs/mok.der

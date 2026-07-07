@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Run all static checks (shell + Containerfile + workflows)"
+#MISE depends=["lint:shell", "lint:deno", "lint:container", "lint:workflows", "lint:legal"]
+set -euo pipefail
+echo "all lint checks passed"

@@ -1,0 +1,35 @@
+/* bluecat Anaconda GTK overrides (shipped via product.img).
+ *
+ * Anaconda loads /usr/share/anaconda/anaconda-gtk.css and, when present, the
+ * product.img overlays these files over the installer runtime. We override the
+ * vendor color and the sidebar/topbar logo so the installer shows bluecat
+ * instead of Fedora branding.
+ */
+
+/* bluecat brand color (matches os-release ANSI_COLOR 0;38;2;0;111;179). */
+@define-color fedora #006eb4;
+
+.logo-sidebar {
+    background-image: url('/usr/share/anaconda/pixmaps/sidebar-bg.png');
+    background-color: #006eb4;
+    background-repeat: no-repeat;
+}
+
+/* bluecat logo in the sidebar. */
+.logo {
+    background-image: url('/usr/share/anaconda/pixmaps/sidebar-logo.png');
+    background-position: 50% 20px;
+    background-repeat: no-repeat;
+    background-color: transparent;
+}
+
+.product-logo {
+    background-image: none;
+    background-color: transparent;
+}
+
+AnacondaSpokeWindow #nav-box {
+    background-color: #006eb4;
+    background-image: none;
+    color: white;
+}

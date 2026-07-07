@@ -1,0 +1,59 @@
+# =============================================================================
+# .gitignore - schuetzt vor versehentlichem Einchecken von:
+#   - privaten Schluesseln
+#   - erzeugten Artefakten (Images, OSTree, ISO, OCI, RPM, Firmware)
+# Das Repo darf NUR Quellcode/Config/Doku/Skripte enthalten.
+# =============================================================================
+
+# --- Private Keys / Secrets (NIEMALS committen) ------------------------------
+*.key
+*.pem
+*.p12
+*.pfx
+*.priv
+**/certs/mok.key
+**/certs/*.key
+secrets/
+.env.local
+*.secret
+
+# --- Erzeugte Images / OSTree / OCI / ISO ------------------------------------
+*.iso
+*.img
+*.raw
+*.qcow2
+*.vmdk
+*.tar
+*.tar.gz
+*.tar.zst
+*.oci
+*.ociarchive
+oci/
+ostree/
+repo/
+*.commit
+
+# --- RPM / Kernel-Binaries / Firmware ----------------------------------------
+*.rpm
+*.ko
+*.ko.xz
+*.ko.zst
+*.deb
+*.cab
+xow_dongle.bin
+*xow_dongle*.bin
+*xone_dongle*.bin
+**/firmware/*.bin
+
+# --- Build-Output ------------------------------------------------------------
+output/
+*.log
+
+# --- Gerenderte Kickstart (aus iso/bluecat.ks.in erzeugt) --------------------
+iso/bluecat.ks
+
+# --- IDE / OS ----------------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+*.swp

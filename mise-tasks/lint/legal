@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+#MISE description="Run the legal/trademark sanity checks"
+#MISE dir="{{config_root}}"
+# =============================================================================
+# Static, dependency-free sanity checks that enforce the project's legal/
+# trademark posture. Runs as part of `mise lint` (and standalone via
+# `mise lint:legal`). mise runs this task from the repo root (config_root).
+#
+# It verifies, among other things, that:
+#   - no Xbox / Microsoft firmware blobs or driver CAB files are committed;
+#   - no proprietary vendor RPMs are committed;
+#   - no obvious secrets are committed;
+#   - README declares the image as "unofficial" and "not affiliated";
+#   - NOTICE.md carries the NVIDIA proprietary notice;
+#   - docs/xbox-firmware.md documents the opt-in (no build-time download);
+#   - the container build does not fetch/extract the firmware;
+#   - only the local opt-in activator is shipped, gated on an explicit "yes";
+#   - os-release rebranding uses the project name + ID_LIKE=fedora;
+#   - fedora-logos is replaced by generic-logos;
+#   - OCI labels do not use Fedora as vendor/title.
+#
+# Exit code is non-zero if any check fails.
+# =============================================================================
+set -euo pipefail
+
+fail=0
+pass() { printf '  OK   %s\n' "$1"; }
+bad()  { printf '  FAIL %s\n' "$1" >&2; fail=1; }
+
+# Files tracked by git (fallback: all files), excluding .git.
+tracked_files() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files
+  else
+    find . -type f -not -path './.git/*' | sed 's|^\./||'
+  fi
+}
+
+echo "==> Legal/trademark sanity checks"
+
+# --- 1. no firmware blobs / driver CAB committed ----------------------------
+if tracked_files | grep -Eiq '(^|/)(xow_dongle|xone_dongle)[^/]*\.bin$|\.cab$'; then
+  bad "firmware blob or .cab driver file is committed"
+  tracked_files | grep -Ei '(^|/)(xow_dongle|xone_dongle)[^/]*\.bin$|\.cab$' >&2 || true
+else
+  pass "no Xbox/CAB firmware files committed"
+fi
+
+# --- 2. no proprietary vendor RPMs (e.g. Brother) committed -----------------
+if tracked_files | grep -Eiq '\.rpm$'; then
+  bad "an .rpm file is committed (no vendor RPMs should be in the repo)"
+  tracked_files | grep -Ei '\.rpm$' >&2 || true
+else
+  pass "no .rpm files committed"
+fi
+
+# --- 3. no obvious secrets --------------------------------------------------
+if tracked_files | grep -Eiq '(^|/)certs/mok\.key$|\.key$|id_rsa$|id_ed25519$'; then
+  bad "a private key / secret-looking file is committed"
+  tracked_files | grep -Ei '(^|/)certs/mok\.key$|\.key$|id_rsa$|id_ed25519$' >&2 || true
+else
+  pass "no obvious private keys/secrets committed"
+fi
+
+# --- 4. README disclaimers --------------------------------------------------
+if grep -qi 'unofficial' README.md; then
+  pass "README contains 'unofficial'"
+else
+  bad "README is missing 'unofficial'"
+fi
+if grep -qi 'not affiliated' README.md; then
+  pass "README contains 'not affiliated'"
+else
+  bad "README is missing 'not affiliated'"
+fi
+
+# --- 5. NOTICE NVIDIA notice ------------------------------------------------
+if grep -qi 'NVIDIA' NOTICE.md && grep -qi 'proprietary' NOTICE.md; then
+  pass "NOTICE.md carries the proprietary NVIDIA notice"
+else
+  bad "NOTICE.md is missing a proprietary NVIDIA notice"
+fi
+
+# --- 6. xbox-firmware opt-in documented, no build-time download -------------
+if grep -qi 'enable-xone-firmware' docs/xbox-firmware.md \
+   && grep -qi 'opt-in' docs/xbox-firmware.md \
+   && grep -qi 'firmware download during the build' docs/xbox-firmware.md; then
+  pass "docs/xbox-firmware.md documents the opt-in (no build-time download)"
+else
+  bad "docs/xbox-firmware.md does not clearly document the opt-in model"
+fi
+
+# --- 7. CI must not download firmware or build it ---------------------------
+if grep -Rqi 'xone-get-firmware\|windowsupdate\|download.*firmware' .github/ 2>/dev/null; then
+  bad "a GitHub workflow references firmware download"
+else
+  pass "CI workflows do not download firmware"
+fi
+
+# --- 7b. the build itself must not download the firmware --------------------
+if grep -Eqi 'windowsupdate|xow_dongle|FW_ACC_00U|\.cab' \
+     container/build-modules.sh container/image-setup.sh; then
+  bad "the container build references downloading/extracting the firmware"
+else
+  pass "the container build does not fetch/extract the firmware"
+fi
+
+# --- 7c. only the local opt-in activator is shipped, gated on explicit yes --
+ACTIVATOR="system_files/usr/bin/enable-xone-firmware"
+if [[ -f "${ACTIVATOR}" ]]; then
+  pass "opt-in activator ${ACTIVATOR} is present"
+  # It must require an explicit "yes" before doing anything.
+  if grep -q 'answer' "${ACTIVATOR}" && grep -q '!= "yes"' "${ACTIVATOR}"; then
+    pass "activator requires typing exactly 'yes' (default aborts)"
+  else
+    bad "activator does not clearly gate on an explicit 'yes'"
+  fi
+  # It must NOT write into the read-only /usr firmware tree. Ignore comment
+  # lines (the activator explains in a comment why it avoids that path).
+  if grep -v '^[[:space:]]*#' "${ACTIVATOR}" \
+       | grep -Eq '/usr/lib/firmware|/lib/firmware'; then
+    bad "activator writes into /usr/lib/firmware or /lib/firmware (not bootc-safe)"
+  else
+    pass "activator does not write into /usr(/lib)/firmware"
+  fi
+else
+  bad "opt-in activator ${ACTIVATOR} is missing"
+fi
+
+# --- 7d. no pre-created systemd firmware unit is committed ------------------
+if tracked_files | grep -Eiq 'xone-firmware-fetch\.service$'; then
+  bad "a pre-created xone-firmware-fetch.service is committed (must be created on opt-in)"
+else
+  pass "no pre-created firmware systemd unit committed"
+fi
+
+# --- 8. os-release rebranding -----------------------------------------------
+if grep -q 'ID="bluecat"' container/image-setup.sh \
+   && grep -q 'ID_LIKE="fedora"' container/image-setup.sh; then
+  pass "os-release rebrands to bluecat with ID_LIKE=fedora"
+else
+  bad "os-release rebranding (bluecat + ID_LIKE=fedora) not found in image-setup.sh"
+fi
+if grep -q 'NAME="Fedora Linux"' container/image-setup.sh; then
+  bad "image-setup.sh still sets NAME=\"Fedora Linux\""
+else
+  pass "os-release does not keep NAME=\"Fedora Linux\""
+fi
+
+# --- 9. fedora-logos replaced -----------------------------------------------
+if grep -q 'generic-logos' container/image-setup.sh; then
+  pass "fedora-logos is replaced by generic-logos"
+else
+  bad "fedora-logos replacement (generic-logos) not found in image-setup.sh"
+fi
+# 9b. Must NOT use `rpm-ostree override remove` for that: it records a
+# persistent override that breaks later rpm-ostree transactions on the target
+# (e.g. `rpm-ostree initramfs --enable`). Use `dnf swap`/`dnf remove` instead.
+# Ignore comment lines (image-setup.sh explains in a comment why it avoids it).
+if grep -v '^[[:space:]]*#' container/image-setup.sh \
+     | grep -Eq 'rpm-ostree[[:space:]]+override[[:space:]]+remove'; then
+  bad "image-setup.sh uses 'rpm-ostree override remove' (breaks later rpm-ostree ops; use dnf swap)"
+else
+  pass "no persistent 'rpm-ostree override remove' in image-setup.sh"
+fi
+
+# --- 10. OCI labels do not use Fedora as vendor/title -----------------------
+if grep -Eiq 'image\.vendor="?Fedora|image\.title="?Fedora' Containerfile; then
+  bad "OCI labels use Fedora as vendor/title"
+else
+  pass "OCI labels do not use Fedora as vendor/title"
+fi
+if grep -q 'org.opencontainers.image.vendor="echocat"' Containerfile; then
+  pass "OCI vendor label is echocat"
+else
+  bad "OCI vendor label is not set to echocat"
+fi
+
+echo
+if [[ "${fail}" -ne 0 ]]; then
+  echo "==> legal sanity checks FAILED" >&2
+  exit 1
+fi
+echo "==> all legal sanity checks passed"

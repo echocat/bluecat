@@ -1,0 +1,168 @@
+#!/usr/bin/env -S deno run --allow-net --allow-read
+//MISE description="Validate the MOK cert/key files (parse, key<->cert match, EKU)"
+//MISE dir="{{config_root}}"
+//MISE tools={deno="latest"}
+// ===========================================================================
+// Verifies that the Secure Boot signing material in certs/ is internally
+// consistent. Used as a precondition of `mise build:image` and in CI after the
+// certificates have been restored from secrets.
+//
+// Checks:
+//   1. mok.crt (PEM) and mok.der (DER) parse as X.509 and describe the SAME
+//      certificate.
+//   2. mok.key (PEM PKCS#8) is a valid RSA private key.
+//   3. the private key belongs to the certificate (same RSA public modulus).
+//   4. the certificate carries the expected extensions:
+//        basicConstraints CA:FALSE, keyUsage digitalSignature,
+//        extendedKeyUsage codeSigning (1.3.6.1.5.5.7.3.3)
+//        + the MOK module-signing OID 1.3.6.1.4.1.2312.16.1.2.
+// ===========================================================================
+import * as x509 from "npm:@peculiar/x509@1.12.3";
+
+x509.cryptoProvider.set(globalThis.crypto);
+
+const CRT = "certs/mok.crt";
+const KEY = "certs/mok.key";
+const DER = "certs/mok.der";
+
+const failures: string[] = [];
+function check(ok: boolean, msg: string) {
+  if (ok) {
+    console.log(`  OK   ${msg}`);
+  } else {
+    console.error(`  FAIL ${msg}`);
+    failures.push(msg);
+  }
+}
+
+// --- read files -------------------------------------------------------------
+async function readTextOrDie(path: string): Promise<string> {
+  try {
+    return await Deno.readTextFile(path);
+  } catch {
+    console.error(`ERROR: ${path} is missing. Run 'mise keys' first.`);
+    Deno.exit(1);
+  }
+}
+async function readBytesOrDie(path: string): Promise<Uint8Array> {
+  try {
+    return await Deno.readFile(path);
+  } catch {
+    console.error(`ERROR: ${path} is missing. Run 'mise keys' first.`);
+    Deno.exit(1);
+  }
+}
+
+const crtPem = await readTextOrDie(CRT);
+const keyPem = await readTextOrDie(KEY);
+const derBytes = await readBytesOrDie(DER);
+
+console.log("==> Validating MOK signing material");
+
+// --- 1. parse cert (PEM) and der, ensure they match -------------------------
+let certPem: x509.X509Certificate;
+try {
+  certPem = new x509.X509Certificate(crtPem);
+  check(true, `${CRT} parses as X.509`);
+} catch (e) {
+  check(false, `${CRT} parses as X.509 (${(e as Error).message})`);
+  reportAndExit();
+}
+
+let certDer: x509.X509Certificate;
+try {
+  certDer = new x509.X509Certificate(toArrayBuffer(derBytes));
+  check(true, `${DER} parses as X.509`);
+} catch (e) {
+  check(false, `${DER} parses as X.509 (${(e as Error).message})`);
+  reportAndExit();
+}
+
+// Same certificate? Compare the raw DER of both parsed certificates.
+const derFromPem = new Uint8Array(certPem!.rawData);
+const derFromDer = new Uint8Array(certDer!.rawData);
+check(
+  bytesEqual(derFromPem, derFromDer) && bytesEqual(derFromDer, derBytes),
+  `${CRT} and ${DER} describe the same certificate`,
+);
+
+// --- 2. + 3. private key parses and matches the certificate -----------------
+const jwkPriv = await importPrivateKeyJwk(keyPem);
+check(jwkPriv !== null, `${KEY} is a valid RSA private key`);
+
+if (jwkPriv) {
+  const jwkCert = await certPem!.publicKey.export().then((k) =>
+    crypto.subtle.exportKey("jwk", k)
+  );
+  const sameModulus = jwkPriv.n === jwkCert.n && jwkPriv.e === jwkCert.e;
+  check(sameModulus, `${KEY} belongs to ${CRT} (matching RSA public key)`);
+}
+
+// --- 4. extensions ----------------------------------------------------------
+const bc = certPem!.getExtension(x509.BasicConstraintsExtension);
+check(bc !== null && bc.ca === false, "basicConstraints = CA:FALSE");
+
+const ku = certPem!.getExtension(x509.KeyUsagesExtension);
+check(
+  ku !== null &&
+    (ku.usages & x509.KeyUsageFlags.digitalSignature) ===
+      x509.KeyUsageFlags.digitalSignature,
+  "keyUsage includes digitalSignature",
+);
+
+const eku = certPem!.getExtension(x509.ExtendedKeyUsageExtension);
+const ekuOids = eku ? eku.usages : [];
+check(
+  ekuOids.includes("1.3.6.1.5.5.7.3.3"),
+  "extendedKeyUsage includes codeSigning",
+);
+check(
+  ekuOids.includes("1.3.6.1.4.1.2312.16.1.2"),
+  "extendedKeyUsage includes MOK module-signing OID",
+);
+
+reportAndExit();
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
+  return u8.buffer.slice(
+    u8.byteOffset,
+    u8.byteOffset + u8.byteLength,
+  ) as ArrayBuffer;
+}
+
+async function importPrivateKeyJwk(
+  pem: string,
+): Promise<JsonWebKey | null> {
+  try {
+    const der = x509.PemConverter.decodeFirst(pem);
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      der,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      true,
+      ["sign"],
+    );
+    return await crypto.subtle.exportKey("jwk", key);
+  } catch {
+    return null;
+  }
+}
+
+function reportAndExit(): never {
+  console.log();
+  if (failures.length === 0) {
+    console.log("==> All checks passed.");
+    Deno.exit(0);
+  }
+  console.error(`==> ${failures.length} check(s) FAILED.`);
+  Deno.exit(1);
+}

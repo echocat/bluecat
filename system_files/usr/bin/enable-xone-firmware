@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# =============================================================================
+# enable-xone-firmware
+# =============================================================================
+# LOCAL opt-in activator for the proprietary Microsoft Xbox Wireless Adapter
+# firmware required by the xone driver's USB dongle support.
+#
+# This project (bluecat / echocat) does NOT ship, bundle or pre-download the
+# Microsoft firmware. This script is the ONLY firmware-related component in the
+# image. It contains no firmware, downloads nothing by itself, and creates no
+# systemd unit until you explicitly confirm.
+#
+# On explicit confirmation (typing exactly "yes") it configures THIS local
+# system to download the firmware from Microsoft/Windows Update by creating:
+#   - /etc/acknowledgements/microsoft-xbox-controller-firmware  (your consent)
+#   - /var/lib/xone-firmware/bin/fetch                          (fetch script)
+#   - /var/lib/xone-firmware/firmware/                          (target dir)
+#   - /etc/systemd/system/xone-firmware-fetch.service           (oneshot unit)
+# and then enables + starts that unit.
+#
+# The firmware is Microsoft's proprietary software, subject to Microsoft's
+# terms. This script only automates a download that YOU initiate on YOUR device.
+# =============================================================================
+set -euo pipefail
+
+ACK_FILE="/etc/acknowledgements/microsoft-xbox-controller-firmware"
+STATE_DIR="/var/lib/xone-firmware"
+FETCH_BIN="${STATE_DIR}/bin/fetch"
+FW_DIR="${STATE_DIR}/firmware"
+UNIT_FILE="/etc/systemd/system/xone-firmware-fetch.service"
+
+# Pinned Microsoft driver package (same source as the xone project upstream).
+FIRMWARE_URL="http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab"
+FIRMWARE_HASH="48084d9fa53b9bb04358f3bb127b7495dc8f7bb0b3ca1437bd24ef2b6eabdf66"
+
+MS_TERMS_URL="https://www.microsoft.com/en-us/legal/terms-of-use"
+XONE_URL="https://github.com/medusalix/xone"
+
+# --- must run as root -------------------------------------------------------
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "ERROR: please run as root (sudo enable-xone-firmware)." >&2
+  exit 1
+fi
+
+# --- required tools ---------------------------------------------------------
+require_tools() {
+  local missing=()
+  local t
+  for t in systemctl curl sha256sum mktemp install cabextract; do
+    command -v "${t}" >/dev/null 2>&1 || missing+=("${t}")
+  done
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    echo "ERROR: required tool(s) missing: ${missing[*]}" >&2
+    exit 1
+  fi
+}
+require_tools
+
+# --- disclaimer + explicit consent ------------------------------------------
+cat <<EOF
+
+============================================================================
+  Xbox Wireless Adapter firmware — local activation
+============================================================================
+This image does NOT include the Microsoft Xbox Wireless Adapter firmware.
+
+If you continue, THIS system will be configured to DOWNLOAD that firmware
+from Microsoft / Windows Update and install it locally. The firmware is
+Microsoft's proprietary software and is subject to Microsoft's terms.
+
+This project only provides the local activation mechanism. Nothing is
+downloaded and no systemd service is created unless you confirm below.
+
+  Microsoft terms of use : ${MS_TERMS_URL}
+  xone project / firmware: ${XONE_URL}
+
+Firmware will be downloaded (once) from:
+  ${FIRMWARE_URL}
+and verified against a pinned SHA256 checksum.
+
+To proceed, type exactly:  yes
+Anything else aborts and changes NOTHING.
+============================================================================
+EOF
+
+printf 'Proceed? type "yes" to continue: '
+read -r answer
+if [[ "${answer}" != "yes" ]]; then
+  echo "Aborted. No files were created; no firmware was downloaded."
+  exit 0
+fi
+
+# =============================================================================
+# From here on the user has explicitly consented.
+# =============================================================================
+
+echo "==> Recording acknowledgement: ${ACK_FILE}"
+install -d -m 0755 "$(dirname "${ACK_FILE}")"
+cat > "${ACK_FILE}" <<EOF
+The local system administrator explicitly enabled downloading the proprietary
+Microsoft Xbox Wireless Adapter firmware via 'enable-xone-firmware' on:
+  $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Source : ${FIRMWARE_URL}
+SHA256 : ${FIRMWARE_HASH}
+The firmware is Microsoft's proprietary software, subject to Microsoft's terms.
+EOF
+chmod 0644 "${ACK_FILE}"
+
+echo "==> Creating firmware target directory: ${FW_DIR}"
+install -d -m 0755 "${STATE_DIR}" "${STATE_DIR}/bin" "${FW_DIR}"
+
+echo "==> Writing fetch script: ${FETCH_BIN}"
+# The fetch script is written with a quoted heredoc so nothing is expanded
+# here; the pinned values are injected as a small config block above it.
+{
+  cat <<EOF
+#!/usr/bin/env bash
+# Auto-generated by enable-xone-firmware. Do not edit; re-run the activator.
+ACK_FILE="${ACK_FILE}"
+FW_DIR="${FW_DIR}"
+FIRMWARE_URL="${FIRMWARE_URL}"
+FIRMWARE_HASH="${FIRMWARE_HASH}"
+EOF
+  cat <<'EOF'
+set -euo pipefail
+
+# Refuse to run unless the local acknowledgement is present.
+if [[ ! -f "${ACK_FILE}" ]]; then
+  echo "ERROR: acknowledgement missing (${ACK_FILE}); run enable-xone-firmware." >&2
+  exit 1
+fi
+
+DEST="${FW_DIR}/xow_dongle.bin"
+
+# Only download if the firmware is not already present.
+if [[ -f "${DEST}" ]]; then
+  echo "==> Firmware already present: ${DEST}"
+else
+  for t in curl sha256sum mktemp install cabextract; do
+    command -v "${t}" >/dev/null 2>&1 || { echo "ERROR: missing tool: ${t}" >&2; exit 1; }
+  done
+
+  # Only ever fetch from the pinned Microsoft/Windows Update URL.
+  case "${FIRMWARE_URL}" in
+    http://download.windowsupdate.com/*|https://download.windowsupdate.com/*) ;;
+    *) echo "ERROR: refusing non-Windows-Update firmware URL." >&2; exit 1 ;;
+  esac
+
+  WORK="$(mktemp -d)"
+  trap 'rm -rf "${WORK}"' EXIT
+
+  echo "==> Downloading Microsoft driver package"
+  if ! curl -fSL -o "${WORK}/driver.cab" "${FIRMWARE_URL}"; then
+    echo "ERROR: download failed from ${FIRMWARE_URL}" >&2
+    exit 1
+  fi
+
+  echo "==> Verifying SHA256"
+  if ! echo "${FIRMWARE_HASH}  ${WORK}/driver.cab" | sha256sum -c - >/dev/null 2>&1; then
+    echo "ERROR: SHA256 mismatch - refusing to install." >&2
+    echo "       expected: ${FIRMWARE_HASH}" >&2
+    echo "       got:      $(sha256sum "${WORK}/driver.cab" | awk '{print $1}')" >&2
+    exit 1
+  fi
+
+  echo "==> Extracting firmware"
+  if ! cabextract -d "${WORK}" -F FW_ACC_00U.bin "${WORK}/driver.cab" >/dev/null; then
+    echo "ERROR: failed to extract FW_ACC_00U.bin from the driver package." >&2
+    exit 1
+  fi
+
+  install -D -m 0644 "${WORK}/FW_ACC_00U.bin" "${DEST}"
+  echo "==> Firmware installed: ${DEST}"
+fi
+
+# Point the kernel firmware loader at our writable directory (best effort).
+# On an immutable/bootc system /usr/lib/firmware is read-only, so we serve the
+# firmware from /var via the firmware_class search path when writable.
+FW_PATH_PARAM="/sys/module/firmware_class/parameters/path"
+if [[ -w "${FW_PATH_PARAM}" ]]; then
+  echo "${FW_DIR}" > "${FW_PATH_PARAM}" || true
+  echo "==> firmware_class search path set to ${FW_DIR}"
+else
+  echo "==> NOTE: ${FW_PATH_PARAM} not writable; firmware search path unchanged."
+fi
+
+echo "==> Done. Re-plug the Xbox wireless dongle or reboot to load the firmware."
+EOF
+} > "${FETCH_BIN}"
+chmod 0755 "${FETCH_BIN}"
+
+echo "==> Writing systemd unit: ${UNIT_FILE}"
+cat > "${UNIT_FILE}" <<EOF
+[Unit]
+Description=Fetch Xbox Wireless Adapter firmware for xone
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=${ACK_FILE}
+
+[Service]
+Type=oneshot
+ExecStart=${FETCH_BIN}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "${UNIT_FILE}"
+
+echo "==> Reloading systemd and enabling the fetch service"
+systemctl daemon-reload
+systemctl enable --now xone-firmware-fetch.service
+
+echo
+echo "==> xone firmware activation complete."
+echo "    Firmware directory: ${FW_DIR}"
+echo "    Service status:     systemctl status xone-firmware-fetch.service"
+echo "    Re-plug the dongle or reboot if the controller is not detected yet."

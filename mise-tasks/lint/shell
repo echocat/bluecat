@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#MISE description="ShellCheck all shell scripts"
+#MISE dir="{{config_root}}"
+set -euo pipefail
+# ShellCheck the container build scripts, shipped scripts and all bash
+# file-tasks. Several of these have no .sh extension (mise file-tasks, the
+# enable-xone-firmware activator under system_files/), so collect candidates by
+# type and keep only those whose shebang references bash/sh (e.g. the
+# Deno-based keys task and binary files are skipped).
+files=()
+while IFS= read -r f; do
+  read -r first < "${f}" || true
+  case "${first}" in
+    *bash*|*"/sh"*|*"env sh"*) files+=("${f}") ;;
+  esac
+done < <(find container -name '*.sh' -type f; find mise-tasks system_files -type f)
+
+shellcheck --external-sources --severity=warning "${files[@]}"
