@@ -6,12 +6,12 @@ the master file it is derived from. The image assets under `system_files/` are
 
 ## Source files (edit these)
 
-| File                        | Content                              | Role                          |
-|-----------------------------|--------------------------------------|-------------------------------|
-| `bluecat-logo.af`           | Affinity Designer master             | editable master (not used by the build) |
-| `bluecat-logo-symbol.svg`   | square mark only (`viewBox 0 0 182 182`) | app icon / os-release `LOGO` |
-| `bluecat-logo.svg`          | mark + wordmark (`viewBox 0 0 838 182`)  | full logo (pixmap)            |
-| `bluecat-logo-white.svg`    | white mark + wordmark                | Plymouth / SDDM (dark backgrounds) |
+| File                      | Content                                  | Role                                    |
+|---------------------------|------------------------------------------|-----------------------------------------|
+| `bluecat-logo.af`         | Affinity Designer master                 | editable master (not used by the build) |
+| `bluecat-logo-symbol.svg` | square mark only (`viewBox 0 0 182 182`) | app icon / os-release `LOGO`            |
+| `bluecat-logo.svg`        | mark + wordmark (`viewBox 0 0 838 182`)  | full logo (pixmap)                      |
+| `bluecat-logo-white.svg`  | white mark + wordmark                    | Plymouth / SDDM (dark backgrounds)      |
 
 Brand accent color: **`#006fb3`** (used for os-release `ANSI_COLOR`).
 
@@ -24,14 +24,14 @@ mise branding
 This renders the SVGs (pure Deno via `@resvg/resvg-wasm`, no CLI dependency)
 into `system_files/`, which the build copies into the image:
 
-| Generated file (under `system_files/`)                                  | Visible surface            |
-|-------------------------------------------------------------------------|----------------------------|
-| `usr/share/pixmaps/bluecat-logo-icon.svg`                               | os-release `LOGO` / KDE About |
-| `usr/share/icons/hicolor/scalable/apps/bluecat-logo-icon.svg`           | scalable app icon          |
-| `usr/share/icons/hicolor/{16..256}x.../apps/bluecat-logo-icon.png`      | app icon (raster)          |
-| `usr/share/pixmaps/bluecat-logo.svg` + `.png`                           | full logo pixmap           |
-| `usr/share/bluecat/branding/plymouth-watermark.png`                     | Plymouth boot splash (staged; see below) |
-| `usr/share/sddm/themes/bluecat/logo.png` + `symbol.png`                 | SDDM login assets          |
+| Generated file (under `system_files/`)                             | Visible surface                          |
+|--------------------------------------------------------------------|------------------------------------------|
+| `usr/share/pixmaps/bluecat-logo-icon.svg`                          | os-release `LOGO` / KDE About            |
+| `usr/share/icons/hicolor/scalable/apps/bluecat-logo-icon.svg`      | scalable app icon                        |
+| `usr/share/icons/hicolor/{16..256}x.../apps/bluecat-logo-icon.png` | app icon (raster)                        |
+| `usr/share/pixmaps/bluecat-logo.svg` + `.png`                      | full logo pixmap                         |
+| `usr/share/bluecat/branding/plymouth-watermark.png`                | Plymouth boot splash (staged; see below) |
+| `usr/share/sddm/themes/bluecat/logo.png` + `symbol.png`            | SDDM login assets                        |
 
 The generated files are **committed** to the repository. Re-run `mise branding`
 and commit the result whenever a source SVG changes.

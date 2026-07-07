@@ -1,4 +1,4 @@
-name: build:image
+name: Build OCI Image
 
 on:
   push:
@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   build-and-push:
+    name: Build and Push
     runs-on: ubuntu-latest
     # Only run for: push/schedule on main or the "test image" label on a PR.
     # Any other labeled event is ignored.
