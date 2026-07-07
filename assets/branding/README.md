@@ -69,3 +69,7 @@ and commit the result whenever a source SVG changes.
 - **SDDM**: the logo assets are provided under `usr/share/sddm/themes/bluecat/`.
   Wiring a specific SDDM theme/config to display them is left as a documented
   step, as it depends on the chosen SDDM theme.
+- **KDE application launcher**: `image-setup.sh` maps the generated
+  `bluecat-logo-icon.svg` to Plasma's default `start-here` / `start-here-kde`
+  icon names after package transactions have completed, including Breeze theme
+  slots when present.

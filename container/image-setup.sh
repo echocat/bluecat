@@ -324,6 +324,37 @@ else
        "the generated system_files/ assets. generic-logos remains the base."
 fi
 
+# KDE Plasma's application launcher defaults to the active icon theme's
+# start-here/start-here-kde icon. The hicolor aliases cover fallback lookups;
+# copying into Breeze covers the default Plasma theme, which otherwise finds its
+# own icon before falling back to hicolor.
+if [[ -e /usr/share/pixmaps/bluecat-logo-icon.svg ]]; then
+  KDE_LAUNCHER_ICON_NAMES=(
+    start-here
+    start-here-kde
+    start-here-kde-symbolic
+  )
+
+  mkdir -p /usr/share/icons/hicolor/scalable/places
+  for icon_name in "${KDE_LAUNCHER_ICON_NAMES[@]}"; do
+    cp -f /usr/share/pixmaps/bluecat-logo-icon.svg \
+      "/usr/share/icons/hicolor/scalable/places/${icon_name}.svg"
+  done
+
+  for icon_theme in /usr/share/icons/breeze /usr/share/icons/breeze-dark; do
+    [[ -d "${icon_theme}" ]] || continue
+
+    for icon_dir in "${icon_theme}"/places/*; do
+      [[ -d "${icon_dir}" ]] || continue
+
+      for icon_name in "${KDE_LAUNCHER_ICON_NAMES[@]}"; do
+        cp -f /usr/share/pixmaps/bluecat-logo-icon.svg \
+          "${icon_dir}/${icon_name}.svg"
+      done
+    done
+  done
+fi
+
 # Refresh the icon cache so the new hicolor icons are picked up.
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true

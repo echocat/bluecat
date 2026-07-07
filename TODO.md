@@ -44,6 +44,9 @@ Package/image customization has been added in `container/image-setup.sh`:
 - Nushell uses the Gemfury repo with `gpgcheck=0` because the RPMs are unsigned.
 - RustDesk is integrated via `RUSTDESK_VERSION` and release RPM download, with
   SELinux fcontext handling for bundled services.
+- KDE Plasma's default application launcher icon is mapped from the bluecat
+  symbol to the standard `start-here` / `start-here-kde` icon names, including
+  Breeze theme slots when present.
 
 Build task structure has been split:
 
