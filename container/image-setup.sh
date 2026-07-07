@@ -55,11 +55,11 @@ echo "==> Desktop defaults / common tools"
 # dnf5-plugins provides `dnf copr`, which is needed further below to enable the
 # Ghostty COPR before installing it. policycoreutils-python-utils provides
 # `semanage`, needed further below to label the RustDesk hbbs/hbbr binaries.
+# TODO Check if we can add mesa-va-drivers-freeworld  later, again
 rpm-ostree install -y \
   gstreamer1-plugins-good \
   gstreamer1-plugins-bad-free \
   gstreamer1-plugin-openh264 \
-  mesa-va-drivers-freeworld \
   usbutils \
   pciutils \
   mokutil \
