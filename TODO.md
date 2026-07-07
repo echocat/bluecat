@@ -47,6 +47,10 @@ Package/image customization has been added in `container/image-setup.sh`:
 - KDE Plasma's default application launcher icon is mapped from the bluecat
   symbol to the standard `start-here` / `start-here-kde` icon names, including
   Breeze theme slots when present.
+- The image build regenerates the shipped initramfs with `dracut --no-hostonly`
+  after applying the bluecat Plymouth watermark, so fresh ISO installs show the
+  bluecat LUKS/early-boot splash on first boot instead of retaining the base
+  image's Fedora-branded initramfs.
 
 Build task structure has been split:
 

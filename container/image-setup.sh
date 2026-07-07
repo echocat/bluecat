@@ -387,4 +387,30 @@ else
        "and commit the generated system_files/ assets."
 fi
 
+# The LUKS prompt and early boot splash are rendered from the initramfs. The
+# base image may already carry an initramfs built before the watermark above was
+# replaced, so regenerate it here to make fresh ISO installs branded on first
+# boot. Keep it generic; a host-only initramfs from the build container would be
+# wrong for target machines.
+echo "==> Rebuilding initramfs for bluecat boot splash"
+if ! command -v dracut >/dev/null 2>&1; then
+  echo "ERROR: dracut not found; cannot rebuild initramfs for bluecat branding." >&2
+  exit 1
+fi
+
+initramfs_count=0
+for kernel_module_dir in /usr/lib/modules/*/; do
+  kver="$(basename "${kernel_module_dir}")"
+  [[ -f "/usr/lib/modules/${kver}/vmlinuz" ]] || continue
+
+  initramfs_count=$((initramfs_count + 1))
+  echo "    dracut ${kver}"
+  dracut --force --no-hostonly "/usr/lib/modules/${kver}/initramfs.img" "${kver}"
+done
+
+if (( initramfs_count == 0 )); then
+  echo "ERROR: no shipped kernel found under /usr/lib/modules; cannot rebuild initramfs." >&2
+  exit 1
+fi
+
 echo "==> image-setup.sh done"
