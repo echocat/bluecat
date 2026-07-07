@@ -130,9 +130,28 @@ full logic, no separate wrapper scripts). All versions/names are centralized in
 ## Secure Boot — procedure
 
 For the self-signed modules to load under active Secure Boot, the **public**
-MOK cert must be enrolled into the firmware once.
+MOK cert must be enrolled into the firmware once. bluecat prompts for this early
+in boot when Secure Boot is enabled, the key is not enrolled yet, and
+`/etc/pki/echocat/mok.der.ignore` does not exist. The prompt uses a `whiptail`
+dialog on tty1 before the display manager starts. If `whiptail` is unavailable,
+the prompt is skipped as an error instead of falling back to plain text.
 
-### 1. Queue the public cert for enrollment
+The boot prompt offers three choices:
+
+1. register the key now and reboot into MokManager
+2. skip for this boot
+3. skip forever on this installation by creating
+   `/etc/pki/echocat/mok.der.ignore`
+
+When registering, bluecat asks for the one-time MokManager password in the
+`whiptail` dialog and passes a generated password hash to `mokutil`; `mokutil`
+does not prompt for the password itself.
+
+If skipped, NVIDIA-only systems can fail to reach a graphical login because
+`nouveau` is disabled and Secure Boot rejects the unsigned-by-firmware NVIDIA
+module until the MOK is enrolled.
+
+### Manual fallback: queue the public cert for enrollment
 
 On the target system (after installation `mok.der` lives at
 `/etc/pki/echocat/mok.der`, or use the file from `certs/`):
@@ -144,7 +163,7 @@ sudo mokutil --import /etc/pki/echocat/mok.der
 `mokutil` asks for a **one-time password** — remember it, it is requested on
 the next reboot.
 
-### 2. Reboot -> MOK Manager (blue shim screen)
+### Reboot -> MOK Manager (blue shim screen)
 
 On the next boot **MokManager** appears:
 
@@ -153,7 +172,7 @@ On the next boot **MokManager** appears:
 3. enter the password set in step 1
 4. reboot
 
-### 3. Verify
+### Verify
 
 ```bash
 mokutil --list-enrolled | grep -i "bluecat"

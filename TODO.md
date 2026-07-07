@@ -30,6 +30,13 @@ Package/image customization has been added in `container/image-setup.sh`:
 - Gaming stack: Steam, Lutris, MangoHud, Gamescope, vkBasalt, and Winetricks.
 - Virtualization packages: QEMU/KVM, virt tools, libvirt, and Incus. Services are
   installed only and must not be enabled by default.
+- Secure Boot first-boot UX: `bluecat-enroll-mok.service` prompts on tty1 before
+  the display manager when Secure Boot is enabled, the bluecat MOK is not yet
+  enrolled, and `/etc/pki/echocat/mok.der.ignore` is absent. It uses a
+  `whiptail` dialog without text fallback and can queue `mokutil --import`, skip
+  once, or create the ignore marker permanently for the installation. The
+  one-time MokManager password is collected in the dialog and passed to
+  `mokutil` via a temporary password-hash file.
 - Scanner/mDNS packages: SANE backends, AirScan, IPP-over-USB, Avahi, and
   `nss-mdns`.
 - `toolbox` is removed and `distrobox` is installed.

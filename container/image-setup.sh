@@ -62,6 +62,8 @@ rpm-ostree install -y \
   mesa-va-drivers-freeworld \
   usbutils \
   pciutils \
+  mokutil \
+  newt \
   fuse \
   fuse-libs \
   htop \

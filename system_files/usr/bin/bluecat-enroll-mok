@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CERT="${ECHOCAT_MOK_DER:-${ECHOCAT_MOCK_DER:-/etc/pki/echocat/mok.der}}"
+FORCE="${ECHOCAT_MOKUTIL_FORCE:-}"
+IGNORE="${CERT}.ignore"
+export TERM="${TERM:-linux}"
+
+dialog() {
+  whiptail --clear --nocancel --ok-button Continue "$@"
+}
+dialog_with_skip() {
+  whiptail --clear --cancel-button "Skip this boot" --ok-button "Continue" "$@"
+}
+
+if [[ ! -f "${CERT}" || -f "${IGNORE}" ]]; then
+  exit 0
+fi
+
+if ! command -v mokutil >/dev/null 2>&1; then
+  echo "bluecat: mokutil is not installed; cannot enroll Secure Boot key." >&2
+  exit 0
+fi
+
+if ! command -v whiptail >/dev/null 2>&1; then
+  echo "bluecat: whiptail is not installed; skipping Secure Boot key enrollment prompt." >&2
+  exit 1
+fi
+
+sb_state="$(mokutil --sb-state 2>/dev/null || true)"
+if [[ -z "${FORCE}" && "${sb_state,,}" != *"secureboot enabled"* && "${sb_state,,}" != *"secure boot enabled"* ]]; then
+  exit 0
+fi
+
+if [[ -z "${FORCE}" ]] && mokutil --test-key "${CERT}" >/dev/null 2>&1; then
+  exit 0
+fi
+
+prompt_text=$'Although Secure Boot is enabled, this machine does not yet fully trust Bluecat. Some hardware-related modules, such as graphics adapters, require a higher trust level (MOK enrolment). Without this enrolment, Secure Boot may reject these modules, meaning that some hardware may not work correctly — for example, screens may remain black.\n\nEnrollment has two steps:\n1. Queue the bluecat MOK certificate now.\n2. Reboot, choose "Enroll MOK" in the blue MokManager screen, and enter the one-time password you set here.'
+
+password_hash_file=""
+cleanup() {
+  if [[ -n "${password_hash_file}" ]]; then
+    rm -f "${password_hash_file}"
+  fi
+}
+trap cleanup EXIT
+
+read_password() {
+  local password=""
+  local password_confirm=""
+
+  while true; do
+    password="$(dialog_with_skip --title "bluecat Secure Boot" --passwordbox \
+      "Set a one-time password next. You will need it in the blue MokManager screen after reboot. Use characters you can enter on a US keyboard layout." \
+      10 70 3>&1 1>&2 2>&3)"
+
+    if [[ -z "${password}" ]]; then
+      whiptail --clear --title "bluecat Secure Boot" --yes-button "Continue" --no-button "Skip this boot" --yesno "The password must not be empty." 8 70
+      continue
+    fi
+
+    password_confirm="$(dialog_with_skip --title "bluecat Secure Boot" --passwordbox \
+      "Enter the same one-time password again." \
+      9 70 3>&1 1>&2 2>&3)"
+
+    if [[ "${password}" == "${password_confirm}" ]]; then
+      break
+    fi
+
+    whiptail --clear --title "bluecat Secure Boot" --yes-button "Continue" --no-button "Skip this boot" --yesno "The passwords did not match. Please try again." 8 70
+  done
+
+  password_hash_file="$(mktemp --tmpdir bluecat-mok-auth.XXXXXX)"
+  chmod 0600 "${password_hash_file}"
+  mokutil --generate-hash="${password}" >"${password_hash_file}"
+}
+
+queue_import() {
+  read_password
+  mokutil --import "${CERT}" --hash-file "${password_hash_file}"
+
+  selection="$(dialog --title "bluecat Secure Boot" --menu \
+    "The key is queued, but it is not active yet. Reboot now to complete enrollment in MokManager?" \
+    14 70 4 \
+    "1)" "Reboot now" \
+    "2)" "Continue boot" \
+    3>&1 1>&2 2>&3)"
+
+  if [[ "${selection}" == "1)" ]]; then
+    systemctl reboot
+  fi
+
+  exit 0
+}
+
+skip_forever() {
+  install -D -m 0644 /dev/null "${IGNORE}"
+  dialog --title "bluecat Secure Boot" --msgbox \
+    "Created ${IGNORE}. bluecat will not prompt again for this installation." \
+    8 70
+  exit 0
+}
+
+selection="$(dialog --title "bluecat Secure Boot" --menu "${prompt_text}" 21 78 3 \
+  "1)" "Register now" \
+  "2)" "Skip for this boot" \
+  "3)" "Skip forever on this installation" \
+  3>&1 1>&2 2>&3)"
+
+case "${selection}" in
+  "1)") queue_import ;;
+  "3)") skip_forever ;;
+  *) exit 0 ;;
+esac

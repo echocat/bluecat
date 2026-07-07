@@ -1,2 +1,3 @@
+enable bluecat-enroll-mok.service
 enable bluecat-add-flathub.service
 enable bluecat-install-brave.service

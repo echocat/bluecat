@@ -1,4 +1,4 @@
-name: lint
+name: Lint
 
 on:
   push:
@@ -26,6 +26,7 @@ on:
 
 jobs:
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

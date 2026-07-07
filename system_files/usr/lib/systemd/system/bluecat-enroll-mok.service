@@ -1,0 +1,22 @@
+[Unit]
+Description=Prompt for bluecat Secure Boot MOK enrollment
+Documentation=https://github.com/echocat/bluecat
+ConditionSecurity=uefi-secureboot
+ConditionPathExists=/etc/pki/echocat/mok.der
+ConditionPathExists=!/etc/pki/echocat/mok.der.ignore
+After=local-fs.target systemd-vconsole-setup.service
+Before=getty@tty1.service display-manager.service graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bluecat-enroll-mok
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=no
+
+[Install]
+WantedBy=multi-user.target
