@@ -1,5 +1,3 @@
-graphical
-
 # Bring up networking - this is the ONE thing we must set, because
 # `ostreecontainer` below fetches the image from the registry over the network.
 # It does not lock anything down: the user can still change network settings in
@@ -7,5 +5,3 @@ graphical
 network --bootproto=dhcp --device=link --activate --onboot=on
 
 ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --no-signature-verification --stateroot=bluecat
-
-reboot --eject

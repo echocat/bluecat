@@ -54,8 +54,9 @@ Before marking shell/workflow changes done, run the relevant checks:
   `ID=fedora` to make tools happy.
 - The ISO is a netinstall ISO. Do not bake the OS payload into it unless the
   project explicitly changes direction.
-- Keep the Kickstart minimal and interactive. It should set graphical install,
-  activate networking, and point Anaconda at the image with `ostreecontainer`.
+- Keep the Kickstart minimal and interactive. It should activate networking and
+  point Anaconda at the image with `ostreecontainer`. Let Anaconda use its normal
+  UI/default completion flow; do not force graphical mode or automatic reboot.
   Do not add partitioning, user creation, LUKS, locale, or keyboard choices
   unless explicitly requested.
 - The image install currently uses `ostreecontainer --no-signature-verification`.
