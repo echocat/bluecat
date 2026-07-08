@@ -26,8 +26,8 @@
 #
 # Cosign signing:
 #   certs/cosign.key + COSIGN_PASSWORD
-#   Cosign v3 must use the old bundle format until rpm-ostree/containers.image
-#   can verify the new bundle format.
+#   Cosign v3 must disable the signing config and use the old bundle format
+#   until rpm-ostree/containers.image can verify the new bundle format.
 # =============================================================================
 set -euo pipefail
 
@@ -86,7 +86,8 @@ sign_image() {
   fi
 
   echo "==> Sign ${REPO}:${tag}"
-  cosign sign --yes --new-bundle-format=false --key "${COSIGN_KEY}" "${REPO}:${tag}"
+  cosign sign --yes --use-signing-config=false --new-bundle-format=false \
+    --key "${COSIGN_KEY}" "${REPO}:${tag}"
 }
 
 tag_and_push() {
