@@ -31,6 +31,7 @@ ARG XONE_REF
 COPY certs/mok.der /tmp/certs/mok.der
 COPY certs/mok.crt /tmp/certs/mok.crt
 
+COPY container/common.sh /tmp/common.sh
 COPY container/build-modules.sh /tmp/build-modules.sh
 
 # Enable RPM Fusion (free + nonfree) for the NVIDIA akmod, install the build
@@ -94,6 +95,7 @@ COPY LICENSE /usr/share/doc/bluecat/LICENSE
 # ---------------------------------------------------------------------------
 COPY --from=builder /tmp/out/ /
 
+COPY container/common.sh /tmp/common.sh
 COPY container/image-setup.sh /tmp/image-setup.sh
 
 # ---------------------------------------------------------------------------
@@ -102,6 +104,7 @@ COPY container/image-setup.sh /tmp/image-setup.sh
 RUN FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
     RUSTDESK_VERSION="${RUSTDESK_VERSION}" \
     /tmp/image-setup.sh && \
+    rm -f /tmp/common.sh && \
     rm -f /tmp/image-setup.sh && \
     ostree container commit
 

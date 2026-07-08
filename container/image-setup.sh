@@ -7,8 +7,11 @@
 # =============================================================================
 set -euo pipefail
 
+# shellcheck source=container/common.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+
 echo "==> Enabling RPM Fusion (runtime packages: NVIDIA userspace)"
-rpm-ostree install -y \
+retry rpm-ostree install -y \
   "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_MAJOR_VERSION}.noarch.rpm" \
   "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_MAJOR_VERSION}.noarch.rpm"
 

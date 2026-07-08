@@ -17,6 +17,9 @@
 # =============================================================================
 set -euo pipefail
 
+# shellcheck source=container/common.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+
 : "${XONE_REPO:=https://github.com/medusalix/xone.git}"
 : "${XONE_REF:=master}"
 
@@ -34,7 +37,7 @@ fi
 echo "    Kernel: ${KVER}"
 
 echo "==> Enabling RPM Fusion (free + nonfree)"
-dnf install -y \
+retry dnf install -y \
   "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_MAJOR_VERSION}.noarch.rpm" \
   "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_MAJOR_VERSION}.noarch.rpm"
 
