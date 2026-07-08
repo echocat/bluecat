@@ -92,8 +92,9 @@ mise push pr <number>    # -> pr-<number> only
 #    rejects our rebranded ID="bluecat"). The ISO does NOT embed the OS
 #    payload: it installs the image from the registry at install time, so it
 #    stays small and valid across image changes. It is fully rebranded away
-#    from Fedora (volume id, GRUB menu, root docs and the Anaconda installer
-#    title/logo via an Anaconda product.img built from iso/anaconda-branding/).
+#    from Fedora (volume id, GRUB menu, iso/rootfs/ docs and the Anaconda
+#    installer title/logo via a temporary product.img built from bare files in
+#    iso/product.img/).
 #    REQUIRES the image to be pushed (step 3) under ISO_IMAGE_TAG (default the
 #    Fedora major, e.g. "44") and the registry reachable at install time.
 mise build:iso           # -> output/bluecat-netinstall.iso

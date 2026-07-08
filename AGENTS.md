@@ -112,9 +112,13 @@ the same branch cancels an older running one.
   ISO keeps the rebrand intact.
 - `mkksiso -a` maps every added path to `os.path.basename(path)` at the ISO
   root. It does not support `SRC=DEST` syntax.
-- To place `product.img` at `/images/product.img`, pass a local `images/`
-  directory containing `product.img`; `mkksiso` merges it into the ISO's
-  `/images` directory.
+- Files that should land in the ISO root live under `iso/rootfs/`. Because
+  `mkksiso -a` maps every added path to `os.path.basename(path)`, pass the
+  top-level entries from `iso/rootfs/` rather than the directory itself.
+- Files that should land inside Anaconda's `product.img` live under
+  `iso/product.img/`. The ISO build may package them into a
+  temporary `/images/product.img`, but `product.img` itself is a build artifact
+  and should not be committed.
 - `mkksiso -V` sets the ISO volume ID and rewrites GRUB stage2/LABEL references
   to match. Do not run broad replacements like `-R "Fedora" "bluecat"` after
   that, because it can corrupt `inst.stage2=hd:LABEL=...` and make the ISO fail
@@ -138,8 +142,8 @@ the same branch cancels an older running one.
 - `.github/workflows/build-iso.yaml` - ISO CI workflow and rolling release asset
   upload.
 - `iso/bluecat.ks.in` - minimal Kickstart template.
-- `iso/anaconda-branding/` - Anaconda product image branding sources.
-- `iso/README.iso.txt` - ISO root README.
+- `iso/product.img/` - bare Anaconda product image branding files.
+- `iso/rootfs/` - files added to the ISO root, including `/README.txt`.
 - `system_files/` - files copied into the final image.
 - `system_files/usr/lib/bootc/kargs.d/00-nvidia.toml` - NVIDIA-related bootc
   kernel arguments.

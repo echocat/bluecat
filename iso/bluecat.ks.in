@@ -1,36 +1,3 @@
-# =============================================================================
-# bluecat - network install Kickstart (TEMPLATE)
-# =============================================================================
-# This is a TEMPLATE. `mise build:iso` renders it into iso/bluecat.ks by
-# substituting the @@...@@ placeholders (registry / image / tag), then embeds
-# the result into a small Fedora boot ISO with `mkksiso`.
-#
-# Why Anaconda + Kickstart instead of bootc-image-builder (bib):
-#   bib derives its build recipe from the os-release ID field and only knows
-#   fedora/centos/rhel. Our image is rebranded to ID="bluecat", so bib fails
-#   with "could not find def file for distro bluecat-44". Anaconda's
-#   `ostreecontainer` does NOT care about ID - it just pulls the container -
-#   so this keeps ID="bluecat" fully intact.
-#
-# The installer does NOT carry the OS payload; `ostreecontainer` pulls the
-# bootc image straight from the registry over the network at install time.
-# That keeps this ISO small and valid across image changes: whatever is
-# currently pushed under the configured tag is what gets installed.
-#
-# This Kickstart is intentionally MINIMAL: it only activates networking (needed
-# for the registry pull) and points ostreecontainer at the image. Everything
-# else - keyboard, language/region, timezone, users, partitioning and LUKS2
-# encryption - is left to the interactive graphical installer, so the user
-# decides as much as possible.
-#
-# REQUIREMENT: the target image must already be pushed and the registry must be
-# reachable at install time.
-# =============================================================================
-
-# Graphical installer, fully interactive: we deliberately DO NOT pre-answer
-# keyboard layout, language/region, timezone, users or partitioning. Anaconda
-# will prompt for all of them, so the person installing chooses everything -
-# including the partition scheme and whether to enable LUKS2 disk encryption.
 graphical
 
 # Bring up networking - this is the ONE thing we must set, because
@@ -39,14 +6,6 @@ graphical
 # the installer.
 network --bootproto=dhcp --device=link --activate --onboot=on
 
-# The actual network install of the bootc image.
-#   --url          : the OCI image reference (registry/name:tag), rendered by
-#                    the task from IMAGE_REGISTRY / IMAGE_NAME / ISO_IMAGE_TAG
-#   --transport    : pull straight from an OCI registry
-#   --no-signature-verification : we rely on TLS transport security only; the
-#                    images are not ostree/sigstore signed yet. Harden later by
-#                    signing on push and configuring a policy here.
 ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --no-signature-verification --stateroot=bluecat
 
-# Reboot and eject the media when the install finishes.
 reboot --eject

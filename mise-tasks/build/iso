@@ -14,9 +14,9 @@
 # rebrand intact.
 #
 # The ISO is also rebranded away from Fedora: volume id (bluecat-44), GRUB menu
-# titles ("Install bluecat 44"), the root docs (own README.iso.txt, Fedora
+# titles ("Install bluecat 44"), the root docs (own README.txt/LICENSE, Fedora
 # legal readme removed) and the Anaconda installer itself (an Anaconda
-# product.img built from iso/anaconda-branding/ overrides the installer title
+# product.img temporarily built from iso/product.img/ overrides the installer title
 # "BLUECAT 44 INSTALLATION" and the sidebar logo/colors).
 #
 # The OS payload is NOT baked into the ISO, so:
@@ -113,24 +113,50 @@ for d in /dev/loop-control /dev/loop[0-9]*; do
 done
 
 # Branding inputs (rebrand the whole ISO away from Fedora):
-#   * Anaconda installer:  an Anaconda product.img (built in-container) that
-#     overlays /.buildstamp (installer title -> "BLUECAT 44 INSTALLATION") plus
-#     the sidebar logo and GTK css over the running installer.
+#   * ISO root overlay:    files under iso/rootfs/ are added to the ISO root.
+#   * Anaconda installer:  files under iso/product.img/ are packed
+#     into a temporary product.img, which overlays /.buildstamp (installer title
+#     -> "BLUECAT 44 INSTALLATION") plus logo/css over the running installer.
 #   * GRUB boot menu:       -R replaces "Fedora <ver>" with "bluecat <ver>".
 #   * ISO volume id:        -V bluecat-<ver> (mkksiso rewrites the grub refs).
-#   * Root docs:            our own README.iso.txt is added next to LICENSE.
 VOLID="bluecat-${FEDORA_MAJOR_VERSION}"
-BRAND_DIR="iso/anaconda-branding"
-LOGO_SVG="assets/branding/bluecat-logo-white.svg"
+ISO_ROOTFS="iso/rootfs"
+ANACONDA_ROOTFS="iso/product.img"
+
+if [[ ! -f "${ANACONDA_ROOTFS}/.buildstamp.in" ]]; then
+  echo "ERROR: missing ${ANACONDA_ROOTFS}/.buildstamp.in." >&2
+  exit 1
+fi
+
+if [[ ! -f "${ANACONDA_ROOTFS}/usr/share/anaconda/anaconda-gtk.css" ]]; then
+  echo "ERROR: missing ${ANACONDA_ROOTFS}/usr/share/anaconda/anaconda-gtk.css." >&2
+  exit 1
+fi
+
+if [[ ! -f "${ANACONDA_ROOTFS}/usr/share/anaconda/pixmaps/sidebar-logo.png" ]]; then
+  echo "ERROR: missing ${ANACONDA_ROOTFS}/usr/share/anaconda/pixmaps/sidebar-logo.png; run 'mise branding' and commit the generated file." >&2
+  exit 1
+fi
+
+if [[ ! -f "${ISO_ROOTFS}/README.txt" ]]; then
+  echo "ERROR: missing ${ISO_ROOTFS}/README.txt." >&2
+  exit 1
+fi
+
+if [[ ! -f "LICENSE" ]]; then
+  echo "ERROR: missing project root LICENSE." >&2
+  exit 1
+fi
 
 echo "==> Embedding Kickstart + rebranding with mkksiso (in ${ISO_BUILDER_IMAGE}, as root)"
 # A previous run produces a root-owned ISO; remove it with sudo so this run can
 # recreate it. Also chown the fresh ISO back to the invoking user afterwards.
 ${SUDO} rm -f "${OUT_ISO}"
 
-# Everything runs inside the Fedora container: build the Anaconda product.img
-# from our branding sources, then run mkksiso with the branding options.
-# Values are passed in as environment variables to keep quoting sane.
+# Everything runs inside the Fedora container: pack the committed Anaconda rootfs
+# into a temporary product.img, add the committed ISO root overlay, then run
+# mkksiso with the branding options. Values are passed in as environment
+# variables to keep quoting sane.
 ${SUDO} ${ENGINE} run --rm --privileged \
   --pull=newer \
   "${LOOP_DEVICES[@]}" \
@@ -139,54 +165,51 @@ ${SUDO} ${ENGINE} run --rm --privileged \
   -e OUT_ISO="${OUT_ISO}" \
   -e VOLID="${VOLID}" \
   -e VERSION="${FEDORA_MAJOR_VERSION}" \
-  -e BRAND_DIR="${BRAND_DIR}" \
-  -e LOGO_SVG="${LOGO_SVG}" \
+  -e ISO_ROOTFS="${ISO_ROOTFS}" \
+  -e ANACONDA_ROOTFS="${ANACONDA_ROOTFS}" \
   -v "${PWD}:/work:z" \
   -w /work \
   "${ISO_BUILDER_IMAGE}" \
   bash -euo pipefail -c '
-    dnf install -y lorax librsvg2-tools cpio gzip isomd5sum >/dev/null
+    dnf install -y lorax cpio gzip isomd5sum >/dev/null
 
-    # --- build the Anaconda product.img ---------------------------------
-    PROD=/tmp/product
-    mkdir -p "${PROD}/usr/share/anaconda/pixmaps"
+    # Build the Anaconda product.img as a temporary packaging artifact.
+    PROD=$(mktemp -d)
+    ADD_ROOT=$(mktemp -d)
+    mkdir -p "${ADD_ROOT}/images"
+    cp -a "${ANACONDA_ROOTFS}/." "${PROD}/"
 
-    # Installer title comes from /.buildstamp (Product=/Version=).
     sed -e "s|@@VERSION@@|${VERSION}|g" \
         -e "s|@@UUID@@|$(date -u +%Y%m%d%H%M).bluecat|g" \
-        "${BRAND_DIR}/buildstamp.in" > "${PROD}/.buildstamp"
+        "${PROD}/.buildstamp.in" > "${PROD}/.buildstamp"
+    rm -f "${PROD}/.buildstamp.in"
 
-    # GTK css override (bluecat color + logo).
-    cp "${BRAND_DIR}/anaconda-gtk.css" \
-       "${PROD}/usr/share/anaconda/anaconda-gtk.css"
-
-    # Sidebar logo rendered from the white bluecat logo (fits the 150px slot).
-    rsvg-convert -w 146 -h 32 -f png -o \
-      "${PROD}/usr/share/anaconda/pixmaps/sidebar-logo.png" "${LOGO_SVG}"
-
-    # Pack it as a gzipped cpio newc archive (what Anaconda expects).
-    # mkksiso maps each -a path to its basename at the ISO root, so to land the
-    # product.img at /images/product.img we hand it a whole "images" directory.
-    mkdir -p /tmp/add/images
     ( cd "${PROD}" && find . | cpio -o -H newc --quiet | gzip -9 ) \
-      > /tmp/add/images/product.img
-    cp iso/README.iso.txt /tmp/add/README.iso.txt
+      > "${ADD_ROOT}/images/product.img"
+
+    # mkksiso maps every -a path to its basename at the ISO root. Add the
+    # top-level entries from ${ISO_ROOTFS} so the repo layout mirrors the ISO root.
+    add_args=(-a "${ADD_ROOT}/images" -a LICENSE)
+    for add_path in "${ISO_ROOTFS}"/*; do
+      [[ -e "${add_path}" ]] || continue
+      add_args+=(-a "${add_path}")
+    done
 
     # --- run mkksiso with branding --------------------------------------
     # -V sets the volume id AND rewrites the grub stage2/LABEL references to
     #    match, so we must NOT blindly -R "Fedora"->"bluecat" (that would also
     #    corrupt the stage2 LABEL, which must equal the volume id). Only the
     #    human-readable menu titles are replaced.
-    # -a images  -> merges our /images/product.img into the ISO
-    # -a README  -> adds /README.iso.txt at the ISO root
+    # -a ${ADD_ROOT}/images     -> merges /images/product.img into the ISO
+    # -a iso/rootfs/README.txt  -> adds /README.txt at the ISO root
+    # -a LICENSE                -> replaces the Fedora root /LICENSE text
     mkksiso \
       --ks "${KS_OUT}" \
       -V "${VOLID}" \
       -R "Install Fedora ${VERSION}" "Install bluecat ${VERSION}" \
       -R "Test this media & install Fedora ${VERSION}" "Test this media & install bluecat ${VERSION}" \
       -R "Rescue a Fedora system" "Rescue a bluecat system" \
-      -a /tmp/add/images \
-      -a /tmp/add/README.iso.txt \
+      "${add_args[@]}" \
       "${BASE_ISO}" "${OUT_ISO}"
 
     # mkksiso can only add files, not remove them. Drop the Fedora legal readme

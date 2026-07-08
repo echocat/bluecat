@@ -1,13 +1,11 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
-//MISE description="Render the echocat branding assets from SVG into system_files/"
+//MISE description="Render the echocat branding assets from SVG into system_files/ and iso/"
 //MISE dir="{{config_root}}"
 //MISE tools={deno="latest"}
 // ===========================================================================
 // Renders the bluecat / echocat branding from the source SVGs in
-// assets/branding/ into the paths the image expects, under system_files/.
-// The generated files are meant to be committed; the build then simply copies
-// system_files/ into the image (see Containerfile) and image-setup.sh wires up
-// os-release LOGO / Plymouth / SDDM.
+// assets/branding/ into the paths the image and ISO expect. The generated files
+// are meant to be committed; the builds then simply copy/use those files.
 //
 // SVG -> PNG rendering is done in pure Deno via the resvg WebAssembly build
 // (@resvg/resvg-wasm) — no native CLI dependency (no rsvg-convert/ImageMagick).
@@ -29,6 +27,7 @@ const OUT = "system_files";
 const PIXMAPS = `${OUT}/usr/share/pixmaps`;
 const HICOLOR = `${OUT}/usr/share/icons/hicolor`;
 const SDDM_ASSETS = `${OUT}/usr/share/sddm/themes/bluecat`;
+const ISO_ANACONDA_ROOTFS = "iso/product.img";
 // The Plymouth watermark must NOT be shipped straight into the rpm-managed
 // theme dir (/usr/share/plymouth/themes/spinner): a later `rpm-ostree install`
 // re-checks out that package directory and drops non-packaged files. We stage
@@ -123,6 +122,14 @@ console.log("==> SDDM login logo assets");
 await writeFile(`${SDDM_ASSETS}/logo.png`, renderPng(whiteSvg, 500));
 await writeFile(`${SDDM_ASSETS}/symbol.png`, renderPng(symbolSvg, 256));
 
+// --- 5. Anaconda installer logo asset ---------------------------------------
+// This path mirrors where the file lands inside the temporary product.img.
+console.log("==> Anaconda installer logo asset");
+await writeFile(
+  `${ISO_ANACONDA_ROOTFS}/usr/share/anaconda/pixmaps/sidebar-logo.png`,
+  renderPng(whiteSvg, 146),
+);
+
 console.log();
-console.log("==> Branding assets generated under system_files/.");
+console.log("==> Branding assets generated under system_files/ and iso/.");
 console.log("    Review + commit the generated files.");
