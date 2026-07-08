@@ -4,16 +4,6 @@ This file contains durable project rules for coding agents. It should stay
 stable and focused on conventions, invariants, commands, and project-specific
 gotchas.
 
-## Current Work And Live Status
-
-CRITICAL: For current in-progress work, recent changes, decisions, and open
-tasks, read `@TODO.md` using your Read tool before making non-trivial changes.
-Treat `TODO.md` as the live project status and keep it updated as work
-progresses.
-
-`TODO.md` is not the place for permanent rules. Durable project rules belong in
-this file.
-
 ## Project Overview
 
 `bluecat` is a rebranded Fedora Atomic/Kinoite-style bootc/rpm-ostree image.
