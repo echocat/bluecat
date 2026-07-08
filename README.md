@@ -232,6 +232,10 @@ system (only needed for the USB wireless dongle, not for wired/Bluetooth):
 sudo enable-xone-firmware
 ```
 
+The same flow is available from the desktop application menu as **Enable Xbox
+Wireless Adapter Firmware**; that launcher requests root privileges via
+`pkexec` and runs the activator in a terminal.
+
 This shows a disclaimer and requires explicit confirmation through a `whiptail`
 dialog, with a text fallback that requires typing exactly `yes`; only then does
 it set up a local systemd unit that downloads the firmware from Microsoft and

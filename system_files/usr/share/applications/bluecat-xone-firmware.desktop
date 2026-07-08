@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Enable Xbox Wireless Adapter Firmware
+Comment=Configure the local xone firmware download after explicit consent
+Exec=/usr/bin/bash -c "pkexec /usr/bin/enable-xone-firmware; rc=$?; printf '\nPress any key to close...'; read -r _; exit $rc"
+Icon=bluecat-logo-icon
+Terminal=true
+Categories=Settings;HardwareSettings;
+Keywords=xbox;xone;firmware;controller;wireless;bluecat;
+StartupNotify=false

@@ -31,6 +31,10 @@ controllers or Bluetooth. On the target system, run:
 sudo enable-xone-firmware
 ```
 
+Alternatively, launch **Enable Xbox Wireless Adapter Firmware** from the desktop
+application menu. The launcher uses `pkexec` to request root privileges and runs
+the same activator in a terminal.
+
 The activator:
 
 1. Requires root and checks the required tools
