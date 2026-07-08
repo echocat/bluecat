@@ -57,6 +57,38 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise verify-keys
 
+      - name: Prepare CI container storage
+        run: |
+          set -euo pipefail
+
+          echo "==> Disk before cleanup"
+          df -h
+
+          echo "==> Removing unused hosted runner payloads"
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc
+          docker image prune --all --force || true
+          docker builder prune --all --force || true
+          sudo apt-get clean
+
+          echo "==> Configuring rootless Podman storage on /mnt"
+          sudo mkdir -p /mnt/containers-storage
+          sudo chown "${USER}:${USER}" /mnt/containers-storage
+          mkdir -p "${RUNNER_TEMP}/containers-runroot"
+          cat > "${RUNNER_TEMP}/containers-storage.conf" <<EOF
+          [storage]
+          driver = "overlay"
+          runroot = "${RUNNER_TEMP}/containers-runroot"
+          rootless_storage_path = "/mnt/containers-storage"
+          EOF
+
+          echo "CONTAINERS_STORAGE_CONF=${RUNNER_TEMP}/containers-storage.conf" >> "${GITHUB_ENV}"
+
+          echo "==> Disk after cleanup"
+          df -h
+
       # build:image and push run rootless (fast native overlay diff). The ISO
       # task is the only one that needs root, and it is not part of CI.
       - name: Build
@@ -85,3 +117,17 @@ jobs:
       - name: Clean up (remove keys)
         if: always()
         run: rm -f certs/mok.key certs/mok.crt certs/mok.der certs/cosign.key certs/cosign.pub
+
+      - name: Clean up build artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+
+          if command -v podman >/dev/null 2>&1; then
+            podman system prune --all --force --volumes || true
+          fi
+
+          sudo rm -rf /mnt/containers-storage "${RUNNER_TEMP}/containers-runroot"
+
+          echo "==> Disk after build artifact cleanup"
+          df -h
