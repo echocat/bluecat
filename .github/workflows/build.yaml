@@ -38,20 +38,28 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p certs
-          rm -rf certs/mok.*
+          rm -rf certs/mok.* certs/cosign.*
           printf '%s' "${{ secrets.MOK_KEY }}" > certs/mok.key
           printf '%s' "${{ secrets.MOK_CRT }}" > certs/mok.crt
           printf '%s' "${{ secrets.MOK_DER_B64 }}" | base64 -d > certs/mok.der
+          printf '%s' "${{ secrets.COSIGN_KEY }}" > certs/cosign.key
+          printf '%s' "${{ secrets.COSIGN_PUB }}" > certs/cosign.pub
           chmod 600 certs/mok.key
           chmod 644 certs/mok.crt certs/mok.der
+          chmod 600 certs/cosign.key
+          chmod 644 certs/cosign.pub
           echo "signing certificates restored"
 
       - name: Verify signing certificates
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise verify-keys
 
       # build:image and push run rootless (fast native overlay diff). The ISO
       # task is the only one that needs root, and it is not part of CI.
       - name: Build
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise build:image
 
       - name: Push (release, main only)
@@ -61,6 +69,7 @@ jobs:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG_RETENTION: "3"
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise push release
 
       - name: Push (pr test image)
@@ -68,8 +77,9 @@ jobs:
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise push pr "${{ github.event.pull_request.number }}"
 
       - name: Clean up (remove keys)
         if: always()
-        run: rm -f certs/mok.key certs/mok.crt certs/mok.der
+        run: rm -f certs/mok.key certs/mok.crt certs/mok.der certs/cosign.key certs/cosign.pub

@@ -3,7 +3,6 @@
 #MISE dir="{{config_root}}"
 #MISE tools={deno="latest"}
 set -euo pipefail
-# The keys and verify-keys tasks are Deno scripts; check them with Deno's own
-# tooling (they have no .ts extension, so tell deno lint the language).
+# The Deno tasks have no .ts extension, so tell deno lint the language.
 deno check mise-tasks/keys mise-tasks/verify-keys mise-tasks/branding
 deno lint --ext=ts mise-tasks/keys mise-tasks/verify-keys mise-tasks/branding

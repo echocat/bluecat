@@ -12,9 +12,11 @@
 *.pfx
 *.priv
 **/certs/mok.key
+**/certs/cosign.key
 **/certs/*.key
 secrets/
-.env.local
+.env
+.env
 *.secret
 
 # --- Erzeugte Images / OSTree / OCI / ISO ------------------------------------

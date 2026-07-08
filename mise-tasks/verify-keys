@@ -1,11 +1,11 @@
-#!/usr/bin/env -S deno run --allow-net --allow-read
-//MISE description="Validate the MOK cert/key files (parse, key<->cert match, EKU)"
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-run --allow-env=COSIGN_PASSWORD
+//MISE description="Validate the MOK and Cosign signing key files"
 //MISE dir="{{config_root}}"
 //MISE tools={deno="latest"}
 // ===========================================================================
-// Verifies that the Secure Boot signing material in certs/ is internally
-// consistent. Used as a precondition of `mise build:image` and in CI after the
-// certificates have been restored from secrets.
+// Verifies that the signing material in certs/ is internally consistent. Used
+// as a precondition of `mise build:image` and in CI after the certificates have
+// been restored from secrets.
 //
 // Checks:
 //   1. mok.crt (PEM) and mok.der (DER) parse as X.509 and describe the SAME
@@ -25,6 +25,8 @@ x509.cryptoProvider.set(globalThis.crypto);
 const CRT = "certs/mok.crt";
 const KEY = "certs/mok.key";
 const DER = "certs/mok.der";
+const COSIGN_KEY = "certs/cosign.key";
+const COSIGN_PUB = "certs/cosign.pub";
 
 const failures: string[] = [];
 function check(ok: boolean, msg: string) {
@@ -57,6 +59,8 @@ async function readBytesOrDie(path: string): Promise<Uint8Array> {
 const crtPem = await readTextOrDie(CRT);
 const keyPem = await readTextOrDie(KEY);
 const derBytes = await readBytesOrDie(DER);
+const cosignKey = await readTextOrDie(COSIGN_KEY);
+const cosignPub = await readTextOrDie(COSIGN_PUB);
 
 console.log("==> Validating MOK signing material");
 
@@ -128,6 +132,24 @@ check(
   "extendedKeyUsage includes MOK module-signing OID",
 );
 
+console.log();
+console.log("==> Validating Cosign signing material");
+check(
+  cosignKey.includes("-----BEGIN ENCRYPTED COSIGN PRIVATE KEY-----") ||
+    cosignKey.includes("-----BEGIN ENCRYPTED SIGSTORE PRIVATE KEY-----"),
+  `${COSIGN_KEY} is an encrypted Cosign/Sigstore private key`,
+);
+check(
+  cosignPub.includes("-----BEGIN PUBLIC KEY-----"),
+  `${COSIGN_PUB} is a PEM public key`,
+);
+const derivedCosignPub = await cosignPublicKey(COSIGN_KEY);
+check(
+  derivedCosignPub !== null &&
+    normalizePem(derivedCosignPub) === normalizePem(cosignPub),
+  `${COSIGN_KEY} belongs to ${COSIGN_PUB}`,
+);
+
 reportAndExit();
 
 // ---------------------------------------------------------------------------
@@ -162,6 +184,22 @@ async function importPrivateKeyJwk(
   } catch {
     return null;
   }
+}
+
+async function cosignPublicKey(path: string): Promise<string | null> {
+  const command = new Deno.Command("cosign", {
+    args: ["public-key", "--key", path],
+    stdin: "inherit",
+    stdout: "piped",
+    stderr: "inherit",
+  });
+  const output = await command.output();
+  if (!output.success) return null;
+  return new TextDecoder().decode(output.stdout);
+}
+
+function normalizePem(pem: string): string {
+  return pem.replace(/\r/g, "").trim();
 }
 
 function reportAndExit(): never {

@@ -68,6 +68,7 @@ LABEL org.opencontainers.image.title="bluecat" \
 # docs; the actual enrollment happens on the target system's firmware).
 # ---------------------------------------------------------------------------
 COPY certs/mok.der /etc/pki/echocat/mok.der
+COPY certs/cosign.pub /etc/pki/containers/bluecat-cosign.pub
 COPY system_files/ /
 
 # ---------------------------------------------------------------------------

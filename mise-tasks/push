@@ -7,7 +7,7 @@
 #USAGE arg "[number]" help="PR number (required when mode is 'pr')"
 # =============================================================================
 # Re-tags the locally built image (tag "local", produced by `mise build:image`) to
-# the real tags and pushes them.
+# the real tags, pushes them and signs each pushed tag with cosign.
 #
 #   (no mode)        -> nothing is pushed; logs that this is not acceptable.
 #   release          -> tags <major>.<UTC-timestamp>, <major>, latest
@@ -23,6 +23,9 @@
 #   podman login ghcr.io
 # or via env (for CI):
 #   REGISTRY_USER / REGISTRY_TOKEN
+#
+# Cosign signing:
+#   certs/cosign.key + COSIGN_PASSWORD
 # =============================================================================
 set -euo pipefail
 
@@ -44,6 +47,7 @@ fi
 
 REPO="${IMAGE_REGISTRY}/${IMAGE_NAME}"
 LOCAL_REF="${REPO}:${LOCAL_IMAGE_TAG}"
+COSIGN_KEY="${COSIGN_KEY:-certs/cosign.key}"
 
 # --- guard: the local image must exist --------------------------------------
 if ! ${ENGINE} image exists "${LOCAL_REF}" 2>/dev/null; then
@@ -64,13 +68,35 @@ if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_TOKEN:-}" ]]; then
   echo "==> Logging in to ${IMAGE_REGISTRY} as ${REGISTRY_USER}"
   echo "${REGISTRY_TOKEN}" | ${ENGINE} login "${IMAGE_REGISTRY}" \
     --username "${REGISTRY_USER}" --password-stdin
+
+  if command -v cosign >/dev/null 2>&1; then
+    echo "${REGISTRY_TOKEN}" | cosign login "${IMAGE_REGISTRY}" \
+      --username "${REGISTRY_USER}" --password-stdin
+  fi
 fi
+
+sign_image() {
+  local tag="$1"
+
+  if ! command -v cosign >/dev/null 2>&1; then
+    echo "ERROR: cosign not found. Run this task through mise." >&2
+    exit 1
+  fi
+  if [[ ! -f "${COSIGN_KEY}" ]]; then
+    echo "ERROR: ${COSIGN_KEY} not found. Run \`mise keys\` first." >&2
+    exit 1
+  fi
+
+  echo "==> Sign ${REPO}:${tag}"
+  cosign sign --yes --key "${COSIGN_KEY}" "${REPO}:${tag}"
+}
 
 tag_and_push() {
   local tag="$1"
   echo "==> Tag + push ${REPO}:${tag}"
   ${ENGINE} tag "${LOCAL_REF}" "${REPO}:${tag}"
   ${ENGINE} push "${REPO}:${tag}"
+  sign_image "${tag}"
 }
 
 cleanup_release_tags() {
