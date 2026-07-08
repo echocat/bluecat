@@ -37,6 +37,11 @@ Package/image customization has been added in `container/image-setup.sh`:
   once, or create the ignore marker permanently for the installation. The
   one-time MokManager password is collected in the dialog and passed to
   `mokutil` via a temporary password-hash file.
+- MOK enrollment detection no longer trusts `mokutil --test-key`'s return code
+  alone; it parses the output so `is not enrolled` and `Failed to get Subject
+  Key ID` do not incorrectly suppress the first-boot prompt. Newly generated MOK
+  certificates include `subjectKeyIdentifier`, and `mise verify-keys` rejects
+  MOK certs missing that extension.
 - Scanner/mDNS packages: SANE backends, AirScan, IPP-over-USB, Avahi, and
   `nss-mdns`.
 - `toolbox` is removed and `distrobox` is installed.
@@ -132,6 +137,11 @@ CI workflow split is implemented:
 
 ## Open / Next Steps
 
+- Regenerate the existing local MOK material (`certs/mok.*`) with the current
+  `mise keys` task so the certificate includes `subjectKeyIdentifier`, then
+  update the corresponding CI secrets (`MOK_KEY`, `MOK_CRT`, `MOK_DER_B64`) and
+  enroll the new public cert on target machines. Until then, `mise verify-keys`
+  correctly fails on the old local cert with `subjectKeyIdentifier is present`.
 - Perform a real VM boot test of `output/bluecat-netinstall.iso` and visually
   verify the Anaconda title, sidebar logo, colors, and interactive installer
   flow.

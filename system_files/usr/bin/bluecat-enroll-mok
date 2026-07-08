@@ -13,6 +13,16 @@ dialog_with_skip() {
   whiptail --clear --cancel-button "Skip this boot" --ok-button "Continue" "$@"
 }
 
+mok_key_is_enrolled() {
+  local output=""
+  local output_lc=""
+
+  output="$(mokutil --test-key "${CERT}" 2>&1 || true)"
+  output_lc="${output,,}"
+
+  [[ "${output_lc}" == *"enrolled"* && "${output_lc}" != *"not enrolled"* && "${output_lc}" != *"failed"* ]]
+}
+
 if [[ ! -f "${CERT}" || -f "${IGNORE}" ]]; then
   exit 0
 fi
@@ -32,7 +42,7 @@ if [[ -z "${FORCE}" && "${sb_state,,}" != *"secureboot enabled"* && "${sb_state,
   exit 0
 fi
 
-if [[ -z "${FORCE}" ]] && mokutil --test-key "${CERT}" >/dev/null 2>&1; then
+if [[ -z "${FORCE}" ]] && mok_key_is_enrolled; then
   exit 0
 fi
 
