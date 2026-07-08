@@ -28,8 +28,10 @@ STATE_DIR="/var/lib/xone-firmware"
 FETCH_BIN="${STATE_DIR}/bin/fetch"
 FW_DIR="${STATE_DIR}/firmware"
 UNIT_FILE="/etc/systemd/system/xone-firmware-fetch.service"
+export TERM="${TERM:-linux}"
 
-# Pinned Microsoft driver package (same source as the xone project upstream).
+# Pinned Microsoft driver package and extracted firmware hash (same source as
+# the xone project upstream).
 FIRMWARE_URL="http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab"
 FIRMWARE_HASH="48084d9fa53b9bb04358f3bb127b7495dc8f7bb0b3ca1437bd24ef2b6eabdf66"
 
@@ -57,7 +59,41 @@ require_tools() {
 require_tools
 
 # --- disclaimer + explicit consent ------------------------------------------
-cat <<EOF
+confirm_activation() {
+  local prompt_text
+  local answer=""
+
+  prompt_text="This image does NOT include the Microsoft Xbox Wireless Adapter firmware.
+
+If you continue, THIS system will be configured to DOWNLOAD that firmware from Microsoft / Windows Update and install it locally. The firmware is Microsoft's proprietary software and is subject to Microsoft's terms.
+
+This project only provides the local activation mechanism. Nothing is downloaded and no systemd service is created unless you confirm here.
+
+Microsoft terms of use:
+${MS_TERMS_URL}
+
+xone project / firmware:
+${XONE_URL}
+
+Firmware will be downloaded once from:
+${FIRMWARE_URL}
+
+The extracted firmware will be verified against a pinned SHA256 checksum.
+
+Enable this local firmware download setup now?"
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 1 ]]; then
+    if whiptail --clear --title "bluecat xone firmware" \
+      --yes-button "Enable" --no-button "Abort" \
+      --yesno "${prompt_text}" 26 78; then
+      return 0
+    fi
+
+    echo "Aborted. No files were created; no firmware was downloaded."
+    exit 0
+  fi
+
+  cat <<EOF
 
 ============================================================================
   Xbox Wireless Adapter firmware — local activation
@@ -76,19 +112,24 @@ downloaded and no systemd service is created unless you confirm below.
 
 Firmware will be downloaded (once) from:
   ${FIRMWARE_URL}
-and verified against a pinned SHA256 checksum.
+and the extracted firmware will be verified against a pinned SHA256 checksum.
 
 To proceed, type exactly:  yes
 Anything else aborts and changes NOTHING.
 ============================================================================
 EOF
 
-printf 'Proceed? type "yes" to continue: '
-read -r answer
-if [[ "${answer}" != "yes" ]]; then
-  echo "Aborted. No files were created; no firmware was downloaded."
-  exit 0
-fi
+  printf 'Proceed? type "yes" to continue: '
+  if ! read -r answer; then
+    answer=""
+  fi
+  if [[ "${answer}" != "yes" ]]; then
+    echo "Aborted. No files were created; no firmware was downloaded."
+    exit 0
+  fi
+}
+
+confirm_activation
 
 # =============================================================================
 # From here on the user has explicitly consented.
@@ -155,17 +196,17 @@ else
     exit 1
   fi
 
-  echo "==> Verifying SHA256"
-  if ! echo "${FIRMWARE_HASH}  ${WORK}/driver.cab" | sha256sum -c - >/dev/null 2>&1; then
-    echo "ERROR: SHA256 mismatch - refusing to install." >&2
-    echo "       expected: ${FIRMWARE_HASH}" >&2
-    echo "       got:      $(sha256sum "${WORK}/driver.cab" | awk '{print $1}')" >&2
-    exit 1
-  fi
-
   echo "==> Extracting firmware"
   if ! cabextract -d "${WORK}" -F FW_ACC_00U.bin "${WORK}/driver.cab" >/dev/null; then
     echo "ERROR: failed to extract FW_ACC_00U.bin from the driver package." >&2
+    exit 1
+  fi
+
+  echo "==> Verifying firmware SHA256"
+  if ! printf '%s  %s\n' "${FIRMWARE_HASH}" "${WORK}/FW_ACC_00U.bin" | sha256sum -c - >/dev/null 2>&1; then
+    echo "ERROR: firmware SHA256 mismatch - refusing to install." >&2
+    echo "       expected: ${FIRMWARE_HASH}" >&2
+    echo "       got:      $(sha256sum "${WORK}/FW_ACC_00U.bin" | awk '{print $1}')" >&2
     exit 1
   fi
 
@@ -199,7 +240,7 @@ ConditionPathExists=${ACK_FILE}
 
 [Service]
 Type=oneshot
-ExecStart=${FETCH_BIN}
+ExecStart=/usr/bin/bash ${FETCH_BIN}
 RemainAfterExit=yes
 
 [Install]

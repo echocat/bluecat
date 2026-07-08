@@ -109,11 +109,14 @@ fi
 ACTIVATOR="system_files/usr/bin/enable-xone-firmware"
 if [[ -f "${ACTIVATOR}" ]]; then
   pass "opt-in activator ${ACTIVATOR} is present"
-  # It must require an explicit "yes" before doing anything.
-  if grep -q 'answer' "${ACTIVATOR}" && grep -q '!= "yes"' "${ACTIVATOR}"; then
-    pass "activator requires typing exactly 'yes' (default aborts)"
+  # It must require explicit confirmation before doing anything.
+  if grep -q 'whiptail' "${ACTIVATOR}" \
+     && grep -q 'yes-button "Enable"' "${ACTIVATOR}" \
+     && grep -q 'answer' "${ACTIVATOR}" \
+     && grep -q '!= "yes"' "${ACTIVATOR}"; then
+    pass "activator requires explicit whiptail confirmation with a 'yes' fallback"
   else
-    bad "activator does not clearly gate on an explicit 'yes'"
+    bad "activator does not clearly gate on explicit confirmation"
   fi
   # It must NOT write into the read-only /usr firmware tree. Ignore comment
   # lines (the activator explains in a comment why it avoids that path).

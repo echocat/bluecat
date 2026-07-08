@@ -232,10 +232,12 @@ system (only needed for the USB wireless dongle, not for wired/Bluetooth):
 sudo enable-xone-firmware
 ```
 
-This prints a disclaimer and requires you to type exactly `yes`; only then does
-it set up a local systemd unit that downloads the firmware (SHA256-verified)
-from Microsoft. See [`docs/xbox-firmware.md`](docs/xbox-firmware.md) for the
-full flow and how to undo it.
+This shows a disclaimer and requires explicit confirmation through a `whiptail`
+dialog, with a text fallback that requires typing exactly `yes`; only then does
+it set up a local systemd unit that downloads the firmware from Microsoft and
+verifies the extracted firmware against a pinned SHA256 hash. See
+[`docs/xbox-firmware.md`](docs/xbox-firmware.md) for the full flow and how to
+undo it.
 
 ---
 

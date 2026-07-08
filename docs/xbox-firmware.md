@@ -37,8 +37,10 @@ The activator:
    (`systemctl`, `curl`, `sha256sum`, `mktemp`, `install`, `cabextract`).
 2. Prints a clear disclaimer and links to Microsoft's terms of use and the
    xone project.
-3. Requires you to type exactly `yes`. **The default is to abort** — if you
-   type anything else, **nothing is created and nothing is downloaded.**
+3. Requires explicit confirmation through a `whiptail` dialog. If `whiptail`
+   cannot be used, it falls back to typing exactly `yes`. **The default is to
+   abort** — if you do not confirm, **nothing is created and nothing is
+   downloaded.**
 
 Only **after** you confirm, it creates locally:
 
@@ -58,7 +60,7 @@ The generated fetch script (`/var/lib/xone-firmware/bin/fetch`):
 - re-checks that the acknowledgement file exists (otherwise it refuses to run),
 - only downloads the firmware if it is not already present,
 - only downloads from the pinned Microsoft / Windows Update URL,
-- verifies the download against a pinned **SHA256** hash and **aborts on
+- verifies the extracted firmware against a pinned **SHA256** hash and **aborts on
   mismatch**,
 - installs the firmware to `/var/lib/xone-firmware/firmware/xow_dongle.bin`,
 - points the kernel firmware loader at that directory when possible by writing
