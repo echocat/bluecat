@@ -6,11 +6,11 @@
 # `rpm-ostree kargs`, which only works against a live deployment, not an image
 # build.
 #
-#   rd.driver.blacklist=nouveau  - keep the nouveau driver out of the initramfs
-#   modprobe.blacklist=nouveau   - keep it from loading later on the running system
-#   nvidia-drm.modeset=1         - enable NVIDIA DRM kernel mode setting
+#   rd.driver.blacklist=nouveau,nova_core  - keep conflicting drivers out of the initramfs
+#   modprobe.blacklist=nouveau,nova_core   - keep them from loading later on the running system
+#   nvidia-drm.modeset=1                   - enable NVIDIA DRM kernel mode setting
 kargs = [
-  "rd.driver.blacklist=nouveau",
-  "modprobe.blacklist=nouveau",
+  "rd.driver.blacklist=nouveau,nova_core",
+  "modprobe.blacklist=nouveau,nova_core",
   "nvidia-drm.modeset=1",
 ]

@@ -70,17 +70,12 @@ fi
 
 sign_module() {
   local ko="$1"
-  local was_compressed=0
   if [[ "${ko}" == *.xz ]]; then
     xz -d "${ko}"
     ko="${ko%.xz}"
-    was_compressed=1
   fi
   echo "    signing: ${ko}"
   "${SIGN_FILE}" sha256 "${CERT_KEY}" "${CERT_CRT}" "${ko}"
-  if [[ "${was_compressed}" -eq 1 ]]; then
-    xz -f "${ko}"
-  fi
 }
 
 # Signed modules are staged under /tmp/bluecat-signed inside the output tree.

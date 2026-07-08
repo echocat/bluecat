@@ -42,6 +42,12 @@ rpm-ostree install -y \
 # ---------------------------------------------------------------------------
 echo "==> Re-applying signed NVIDIA modules"
 if [[ -d /tmp/bluecat-signed ]]; then
+  for signed_nvidia_dir in /tmp/bluecat-signed/usr/lib/modules/*/extra/nvidia; do
+    [[ -d "${signed_nvidia_dir}" ]] || continue
+    modules_dir="${signed_nvidia_dir%/extra/nvidia}"
+    kver="$(basename "${modules_dir}")"
+    rm -rf "/usr/lib/modules/${kver}/extra/nvidia"
+  done
   cp -a /tmp/bluecat-signed/. /
   rm -rf /tmp/bluecat-signed
 fi
@@ -195,12 +201,11 @@ restorecon -v '/usr/bin/hbbs'
 restorecon -v '/usr/bin/hbbr'
 
 # ---------------------------------------------------------------------------
-# NVIDIA: modeset (module option) + nouveau blacklist.
+# NVIDIA: modeset (module option) + nouveau/nova_core blacklist.
 #
-# The actual kernel command-line args (rd.driver.blacklist=nouveau,
-# modprobe.blacklist=nouveau, nvidia-drm.modeset=1) are shipped the bootc-native
-# way via system_files/usr/lib/bootc/kargs.d/00-nvidia.toml. The modprobe option
-# below is a separate layer (module load-time option) and complements them.
+# The actual kernel command-line args are shipped the bootc-native way via
+# system_files/usr/lib/bootc/kargs.d/00-nvidia.toml. The modprobe option below
+# is a separate layer (module load-time option) and complements them.
 # ---------------------------------------------------------------------------
 echo "==> Enabling NVIDIA modeset"
 cat > /usr/lib/modprobe.d/nvidia-bluecat.conf <<'EOF'
@@ -223,6 +228,13 @@ done
 # Load the modules at boot.
 # ---------------------------------------------------------------------------
 echo "==> Auto-load configuration"
+cat > /usr/lib/modules-load.d/nvidia-bluecat.conf <<'EOF'
+nvidia
+nvidia_modeset
+nvidia_uvm
+nvidia_drm
+EOF
+
 cat > /usr/lib/modules-load.d/xone-bluecat.conf <<'EOF'
 xone-dongle
 xone-gip
