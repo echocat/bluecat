@@ -9,14 +9,15 @@ Before=getty@tty1.service display-manager.service graphical.target
 
 [Service]
 Type=oneshot
+ExecStartPre=/usr/sbin/chvt 9
 ExecStart=/usr/bin/bluecat-enroll-mok
 StandardInput=tty-force
 StandardOutput=tty
 StandardError=tty
-TTYPath=/dev/tty1
+TTYPath=/dev/tty9
 TTYReset=yes
 TTYVHangup=yes
-TTYVTDisallocate=no
+TTYVTDisallocate=yes
 
 [Install]
 WantedBy=multi-user.target

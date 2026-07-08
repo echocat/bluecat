@@ -13,17 +13,32 @@ dialog_with_skip() {
   whiptail --clear --cancel-button "Skip this boot" --ok-button "Continue" "$@"
 }
 
+log() {
+  if command -v systemd-cat >/dev/null 2>&1; then
+    printf '%s\n' "$*" | systemd-cat -t bluecat-enroll-mok --priority=info || true
+  else
+    printf 'bluecat-enroll-mok: %s\n' "$*" >&2 || true
+  fi
+}
+
 mok_key_is_enrolled() {
   local output=""
   local output_lc=""
 
   output="$(mokutil --test-key "${CERT}" 2>&1 || true)"
   output_lc="${output,,}"
+  log "mokutil --test-key: ${output//$'\n'/ }"
 
   [[ "${output_lc}" == *"enrolled"* && "${output_lc}" != *"not enrolled"* && "${output_lc}" != *"failed"* ]]
 }
 
-if [[ ! -f "${CERT}" || -f "${IGNORE}" ]]; then
+if [[ ! -f "${CERT}" ]]; then
+  log "skipping MOK prompt: certificate not found at ${CERT}"
+  exit 0
+fi
+
+if [[ -f "${IGNORE}" ]]; then
+  log "skipping MOK prompt: ignore marker exists at ${IGNORE}"
   exit 0
 fi
 
@@ -39,12 +54,16 @@ fi
 
 sb_state="$(mokutil --sb-state 2>/dev/null || true)"
 if [[ -z "${FORCE}" && "${sb_state,,}" != *"secureboot enabled"* && "${sb_state,,}" != *"secure boot enabled"* ]]; then
+  log "skipping MOK prompt: Secure Boot is not enabled according to mokutil --sb-state: ${sb_state}"
   exit 0
 fi
 
 if [[ -z "${FORCE}" ]] && mok_key_is_enrolled; then
+  log "skipping MOK prompt: ${CERT} is already enrolled"
   exit 0
 fi
+
+log "showing MOK enrollment prompt for ${CERT}"
 
 prompt_text=$'Although Secure Boot is enabled, this machine does not yet fully trust Bluecat. Some hardware-related modules, such as graphics adapters, require a higher trust level (MOK enrolment). Without this enrolment, Secure Boot may reject these modules, meaning that some hardware may not work correctly — for example, screens may remain black.\n\nEnrollment has two steps:\n1. Queue the bluecat MOK certificate now.\n2. Reboot, choose "Enroll MOK" in the blue MokManager screen, and enter the one-time password you set here.'
 

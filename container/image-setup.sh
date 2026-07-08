@@ -64,6 +64,7 @@ rpm-ostree install -y \
   pciutils \
   mokutil \
   newt \
+  kbd \
   fuse \
   fuse-libs \
   htop \
@@ -285,8 +286,11 @@ fi
 # ship in /usr/lib/systemd/system-preset/70-bluecat.preset. This is the same
 # mechanism Fedora uses for flatpak-add-fedora-repos.service and creates the
 # multi-user.target.wants symlinks in the image.
-echo "==> Enabling bluecat first-boot services (Flathub + Brave)"
-systemctl preset bluecat-add-flathub.service bluecat-install-brave.service
+echo "==> Enabling bluecat first-boot services"
+systemctl preset \
+  bluecat-add-flathub.service \
+  bluecat-install-brave.service \
+  bluecat-enroll-mok.service
 
 echo "==> Rebranding: rewriting os-release"
 # Preserve the upstream Fedora version for traceability of the base.

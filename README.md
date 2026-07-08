@@ -134,8 +134,9 @@ For the self-signed modules to load under active Secure Boot, the **public**
 MOK cert must be enrolled into the firmware once. bluecat prompts for this early
 in boot when Secure Boot is enabled, the key is not enrolled yet, and
 `/etc/pki/echocat/mok.der.ignore` does not exist. The prompt uses a `whiptail`
-dialog on tty1 before the display manager starts. If `whiptail` is unavailable,
-the prompt is skipped as an error instead of falling back to plain text.
+dialog on `/dev/tty9` before the display manager starts. If `whiptail` is
+unavailable, the prompt is skipped as an error instead of falling back to plain
+text.
 
 The boot prompt offers three choices:
 
