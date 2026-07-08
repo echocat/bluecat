@@ -44,16 +44,12 @@ set -euo pipefail
 # shellcheck source=/dev/null
 source ./build.env
 
-# --- container engine (podman preferred, needed to run mkksiso portably) ----
-if command -v podman >/dev/null 2>&1; then
-  ENGINE="podman"
-elif command -v docker >/dev/null 2>&1; then
-  ENGINE="docker"
-else
-  echo "ERROR: neither podman nor docker found." >&2
+# --- Require podman ----------------------------------------------------------
+if ! command -v podman >/dev/null 2>&1; then
+  echo "ERROR: podman not found." >&2
   exit 1
 fi
-echo "==> Engine: ${ENGINE}"
+echo "==> Engine: podman"
 
 OUTPUT_DIR="output"
 BASE_ISO="${OUTPUT_DIR}/fedora-boot-${FEDORA_MAJOR_VERSION}.iso"
@@ -157,7 +153,7 @@ ${SUDO} rm -f "${OUT_ISO}"
 # into a temporary product.img, add the committed ISO root overlay, then run
 # mkksiso with the branding options. Values are passed in as environment
 # variables to keep quoting sane.
-${SUDO} ${ENGINE} run --rm --privileged \
+${SUDO} podman run --rm --privileged \
   --pull=newer \
   "${LOOP_DEVICES[@]}" \
   -e KS_OUT="${KS_OUT}" \

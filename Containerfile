@@ -49,7 +49,11 @@ RUN --mount=type=secret,id=mok_key,target=/tmp/certs/mok.key \
 FROM ${BASE_IMAGE}:${FEDORA_MAJOR_VERSION} AS final
 
 ARG FEDORA_MAJOR_VERSION
+ARG BASE_IMAGE
 ARG RUSTDESK_VERSION
+ARG IMAGE_CREATED
+ARG IMAGE_REVISION
+ARG IMAGE_VERSION
 
 # ---------------------------------------------------------------------------
 # OCI image metadata. Do NOT use Fedora as vendor/title - this is an
@@ -61,7 +65,11 @@ LABEL org.opencontainers.image.title="bluecat" \
       org.opencontainers.image.source="https://github.com/echocat/bluecat" \
       org.opencontainers.image.url="https://github.com/echocat/bluecat" \
       org.opencontainers.image.documentation="https://github.com/echocat/bluecat" \
-      org.opencontainers.image.licenses="MIT AND LicenseRef-third-party"
+      org.opencontainers.image.licenses="MIT AND LicenseRef-third-party" \
+      org.opencontainers.image.created="${IMAGE_CREATED}" \
+      org.opencontainers.image.revision="${IMAGE_REVISION}" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      org.opencontainers.image.base.name="${BASE_IMAGE}:${FEDORA_MAJOR_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Ship the public MOK cert inside the image (informational / for the mokutil

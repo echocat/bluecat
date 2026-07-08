@@ -36,12 +36,8 @@ source ./build.env
 MODE="${usage_mode:-}"
 NUMBER="${usage_number:-}"
 
-if command -v podman >/dev/null 2>&1; then
-  ENGINE="podman"
-elif command -v docker >/dev/null 2>&1; then
-  ENGINE="docker"
-else
-  echo "ERROR: neither podman nor docker found." >&2
+if ! command -v podman >/dev/null 2>&1; then
+  echo "ERROR: podman not found." >&2
   exit 1
 fi
 
@@ -50,7 +46,7 @@ LOCAL_REF="${REPO}:${LOCAL_IMAGE_TAG}"
 COSIGN_KEY="${COSIGN_KEY:-certs/cosign.key}"
 
 # --- guard: the local image must exist --------------------------------------
-if ! ${ENGINE} image exists "${LOCAL_REF}" 2>/dev/null; then
+if ! podman image exists "${LOCAL_REF}" 2>/dev/null; then
   echo "ERROR: ${LOCAL_REF} not found. Run \`mise build:image\` first." >&2
   exit 1
 fi
@@ -66,7 +62,7 @@ fi
 # --- optional non-interactive login (e.g. CI) ------------------------------
 if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_TOKEN:-}" ]]; then
   echo "==> Logging in to ${IMAGE_REGISTRY} as ${REGISTRY_USER}"
-  echo "${REGISTRY_TOKEN}" | ${ENGINE} login "${IMAGE_REGISTRY}" \
+  echo "${REGISTRY_TOKEN}" | podman login "${IMAGE_REGISTRY}" \
     --username "${REGISTRY_USER}" --password-stdin
 
   if command -v cosign >/dev/null 2>&1; then
@@ -94,8 +90,8 @@ sign_image() {
 tag_and_push() {
   local tag="$1"
   echo "==> Tag + push ${REPO}:${tag}"
-  ${ENGINE} tag "${LOCAL_REF}" "${REPO}:${tag}"
-  ${ENGINE} push "${REPO}:${tag}"
+  podman tag "${LOCAL_REF}" "${REPO}:${tag}"
+  podman push "${REPO}:${tag}"
   sign_image "${tag}"
 }
 
