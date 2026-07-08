@@ -319,6 +319,7 @@ VARIANT="Atomic Desktop"
 VARIANT_ID="atomic-desktop"
 ANSI_COLOR="0;38;2;0;111;179"
 LOGO="bluecat-logo-icon"
+BOOTLOADER_NAME="bluecat ${FEDORA_VERSION_ID}"
 HOME_URL="${REPO_URL}"
 SUPPORT_URL="${REPO_URL}/issues"
 BUG_REPORT_URL="${REPO_URL}/issues"
@@ -326,6 +327,8 @@ DOCUMENTATION_URL="${REPO_URL}"
 EOF
 # /etc/os-release should point at the canonical file.
 ln -sf ../usr/lib/os-release /etc/os-release
+# bootupd uses /etc/system-release as the UEFI firmware entry label source.
+echo "bluecat release ${FEDORA_VERSION_ID}" > /etc/system-release
 
 # echocat branding assets: rendered by `mise branding` from assets/branding/
 # and shipped via system_files/, so they are already in place at this point
