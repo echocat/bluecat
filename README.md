@@ -121,8 +121,10 @@ curl -fsSL https://raw.githubusercontent.com/echocat/bluecat/main/scripts/rebase
 sudo systemctl reboot
 ```
 
-This installs the bluecat Cosign trust policy locally and rebases with image
-signature verification enabled.
+This installs the bluecat Cosign trust policy locally and rebases directly with
+`ostree-image-signed:registry:ghcr.io/echocat/bluecat:44`. Published images are
+signed with Cosign v3 using `--new-bundle-format=false` until rpm-ostree can
+verify Cosign's new bundle format natively.
 
 or (bootc-native, on bootc systems):
 

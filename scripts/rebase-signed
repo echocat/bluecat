@@ -9,20 +9,65 @@ fi
 RAW_BASE="${BLUECAT_RAW_BASE:-https://raw.githubusercontent.com/echocat/bluecat/main}"
 IMAGE_REF="${BLUECAT_IMAGE_REF:-ghcr.io/echocat/bluecat:44}"
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+POLICY="/etc/containers/policy.json"
+REGISTRIES_CONFIG="/etc/containers/registries.d/bluecat.yaml"
 
+cleanup() {
+  rm -rf "${TMP_DIR}"
+}
+trap cleanup EXIT
+
+echo "=== Downloading cosign.pub..."
 curl -fsSL "${RAW_BASE}/certs/cosign.pub" -o "${TMP_DIR}/bluecat-cosign.pub"
-curl -fsSL "${RAW_BASE}/system_files/etc/containers/policy.json" -o "${TMP_DIR}/policy.json"
 
 install -D -m 0644 "${TMP_DIR}/bluecat-cosign.pub" \
   /etc/pki/containers/bluecat-cosign.pub
 
-if [[ -e /etc/containers/policy.json && ! -e /etc/containers/policy.json.bluecat-backup ]]; then
-  cp -a /etc/containers/policy.json /etc/containers/policy.json.bluecat-backup
-fi
-install -D -m 0644 "${TMP_DIR}/policy.json" /etc/containers/policy.json
+cat >"${TMP_DIR}/bluecat.yaml" <<'EOF'
+docker:
+  ghcr.io/echocat/bluecat:
+    use-sigstore-attachments: true
+EOF
+install -D -m 0644 "${TMP_DIR}/bluecat.yaml" "${REGISTRIES_CONFIG}"
 
+if [[ -e "${POLICY}" ]]; then
+  if ! grep -q '"ghcr.io/echocat/bluecat"' "${POLICY}" || ! grep -q '"sigstoreSigned"' "${POLICY}"; then
+    echo "ERROR: ${POLICY} already exists and does not contain a bluecat sigstoreSigned policy." >&2
+    echo "       Add a ghcr.io/echocat/bluecat sigstoreSigned policy or move the existing file aside." >&2
+    exit 1
+  fi
+else
+  echo "=== Installing containers policy for bluecat signature verification..."
+  cat >"${TMP_DIR}/policy.json" <<'EOF'
+{
+  "default": [
+    {
+      "type": "insecureAcceptAnything"
+    }
+  ],
+  "transports": {
+    "docker": {
+      "ghcr.io/echocat/bluecat": [
+        {
+          "type": "sigstoreSigned",
+          "keyPath": "/etc/pki/containers/bluecat-cosign.pub",
+          "signedIdentity": {
+            "type": "matchRepository"
+          }
+        }
+      ]
+    }
+  }
+}
+EOF
+  install -D -m 0644 "${TMP_DIR}/policy.json" "${POLICY}"
+fi
+
+systemctl stop rpm-ostreed.service >/dev/null 2>&1 || true
+
+echo "=== rpm-ostree rebase..."
+echo "=== Using ostree-image-signed:registry:${IMAGE_REF}"
 rpm-ostree rebase "ostree-image-signed:registry:${IMAGE_REF}"
 
 echo
-echo "Rebase staged. Reboot with: sudo systemctl reboot"
+echo "=== Rebase staged. Reboot with: sudo systemctl reboot"
