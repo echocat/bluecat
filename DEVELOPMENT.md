@@ -85,8 +85,10 @@ The result is a bootc image that an existing Kinoite system is switched to via
    from Fedora (volume id, GRUB menu, [iso/rootfs/](iso/rootfs) docs and the Anaconda
    installer title/logo via a temporary `product.img` built from bare files in
    [iso/product.img/](iso/product.img)).
-   **requires** the image to be pushed (step 3) under `ISO_IMAGE_TAG` (default the
-   Fedora major, e.g. `44`) and the registry reachable at install time.
+   **requires** the image to be pushed and signed (step 3) under `ISO_IMAGE_TAG`
+   (default the Fedora major, e.g. `44`) and the registry reachable at install
+   time. Anaconda verifies the image with the bluecat Cosign public key embedded
+   into the ISO product image.
    ```shell
    mise build:iso
    # output/bluecat-netinstall.iso is created
@@ -122,4 +124,3 @@ secrets:
 
 `.github/workflows/lint.yaml` runs `mise lint` (ShellCheck, Deno checks,
 hadolint, workflow YAML) without secrets — safe for PRs.
-

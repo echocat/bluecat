@@ -19,15 +19,16 @@ trap cleanup EXIT
 
 echo "=== Downloading cosign.pub..."
 curl -fsSL "${RAW_BASE}/certs/cosign.pub" -o "${TMP_DIR}/bluecat-cosign.pub"
+echo "=== Downloading containers policy..."
+curl -fsSL "${RAW_BASE}/system_files/etc/containers/policy.json" \
+  -o "${TMP_DIR}/policy.json"
+echo "=== Downloading registry signature config..."
+curl -fsSL "${RAW_BASE}/system_files/etc/containers/registries.d/bluecat.yaml" \
+  -o "${TMP_DIR}/bluecat.yaml"
 
 install -D -m 0644 "${TMP_DIR}/bluecat-cosign.pub" \
   /etc/pki/containers/bluecat-cosign.pub
 
-cat >"${TMP_DIR}/bluecat.yaml" <<'EOF'
-docker:
-  ghcr.io/echocat/bluecat:
-    use-sigstore-attachments: true
-EOF
 install -D -m 0644 "${TMP_DIR}/bluecat.yaml" "${REGISTRIES_CONFIG}"
 
 if [[ -e "${POLICY}" ]]; then
@@ -38,28 +39,6 @@ if [[ -e "${POLICY}" ]]; then
   fi
 else
   echo "=== Installing containers policy for bluecat signature verification..."
-  cat >"${TMP_DIR}/policy.json" <<'EOF'
-{
-  "default": [
-    {
-      "type": "insecureAcceptAnything"
-    }
-  ],
-  "transports": {
-    "docker": {
-      "ghcr.io/echocat/bluecat": [
-        {
-          "type": "sigstoreSigned",
-          "keyPath": "/etc/pki/containers/bluecat-cosign.pub",
-          "signedIdentity": {
-            "type": "matchRepository"
-          }
-        }
-      ]
-    }
-  }
-}
-EOF
   install -D -m 0644 "${TMP_DIR}/policy.json" "${POLICY}"
 fi
 

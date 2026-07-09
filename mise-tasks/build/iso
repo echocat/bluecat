@@ -17,7 +17,9 @@
 # titles ("Install bluecat 44"), the root docs (own README.txt/LICENSE, Fedora
 # legal readme removed) and the Anaconda installer itself (an Anaconda
 # product.img temporarily built from iso/product.img/ overrides the installer title
-# "BLUECAT 44 INSTALLATION" and the sidebar logo/colors).
+# "BLUECAT 44 INSTALLATION" and the sidebar logo/colors, carries the container
+# signature trust policy used by Anaconda during install, and wraps ostree so
+# Anaconda's ostreecontainer path enforces that policy).
 #
 # The OS payload is NOT baked into the ISO, so:
 #   * the ISO stays small, and
@@ -56,6 +58,9 @@ BASE_ISO="${OUTPUT_DIR}/fedora-boot-${FEDORA_MAJOR_VERSION}.iso"
 OUT_ISO="${OUTPUT_DIR}/bluecat-netinstall.iso"
 KS_IN="iso/bluecat.ks.in"
 KS_OUT="iso/bluecat.ks"
+COSIGN_PUB="certs/cosign.pub"
+CONTAINERS_POLICY="system_files/etc/containers/policy.json"
+CONTAINERS_REGISTRIES_CONFIG="system_files/etc/containers/registries.d/bluecat.yaml"
 
 IMAGE_REF="${IMAGE_REGISTRY}/${IMAGE_NAME}:${ISO_IMAGE_TAG}"
 
@@ -139,6 +144,26 @@ if [[ ! -f "${ISO_ROOTFS}/README.txt" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${COSIGN_PUB}" ]]; then
+  echo "ERROR: missing ${COSIGN_PUB}." >&2
+  exit 1
+fi
+
+if [[ ! -f "${CONTAINERS_POLICY}" ]]; then
+  echo "ERROR: missing ${CONTAINERS_POLICY}." >&2
+  exit 1
+fi
+
+if [[ ! -f "${CONTAINERS_REGISTRIES_CONFIG}" ]]; then
+  echo "ERROR: missing ${CONTAINERS_REGISTRIES_CONFIG}." >&2
+  exit 1
+fi
+
+if [[ ! -f "${ANACONDA_ROOTFS}/usr/bin/ostree" ]]; then
+  echo "ERROR: missing ${ANACONDA_ROOTFS}/usr/bin/ostree." >&2
+  exit 1
+fi
+
 if [[ ! -f "LICENSE" ]]; then
   echo "ERROR: missing project root LICENSE." >&2
   exit 1
@@ -163,11 +188,14 @@ ${SUDO} podman run --rm --privileged \
   -e VERSION="${FEDORA_MAJOR_VERSION}" \
   -e ISO_ROOTFS="${ISO_ROOTFS}" \
   -e ANACONDA_ROOTFS="${ANACONDA_ROOTFS}" \
+  -e COSIGN_PUB="${COSIGN_PUB}" \
+  -e CONTAINERS_POLICY="${CONTAINERS_POLICY}" \
+  -e CONTAINERS_REGISTRIES_CONFIG="${CONTAINERS_REGISTRIES_CONFIG}" \
   -v "${PWD}:/work:z" \
   -w /work \
   "${ISO_BUILDER_IMAGE}" \
   bash -euo pipefail -c '
-    dnf install -y lorax cpio gzip isomd5sum >/dev/null
+    dnf install -y lorax cpio gzip isomd5sum ostree >/dev/null
 
     # Build the Anaconda product.img as a temporary packaging artifact.
     PROD=$(mktemp -d)
@@ -179,6 +207,24 @@ ${SUDO} podman run --rm --privileged \
         -e "s|@@UUID@@|$(date -u +%Y%m%d%H%M).bluecat|g" \
         "${PROD}/.buildstamp.in" > "${PROD}/.buildstamp"
     rm -f "${PROD}/.buildstamp.in"
+
+    # Anaconda performs the ostreecontainer pull in the installer runtime, so
+    # the trust policy must be present in product.img before the target system
+    # exists. The installed image also ships its own copy for later updates.
+    install -D -m 0644 "${COSIGN_PUB}" \
+      "${PROD}/etc/pki/containers/bluecat-cosign.pub"
+    install -D -m 0644 "${CONTAINERS_REGISTRIES_CONFIG}" \
+      "${PROD}/etc/containers/registries.d/bluecat.yaml"
+    install -D -m 0644 "${CONTAINERS_POLICY}" \
+      "${PROD}/etc/containers/policy.json"
+
+    # Newer ostree ignores the old --no-signature-verification switch for
+    # enforcement and requires --enforce-container-sigpolicy. Anaconda does not
+    # pass that flag for ostreecontainer yet, so wrap only the installer runtime
+    # ostree binary and inject it for the initial container deployment.
+    install -D -m 0755 /usr/bin/ostree \
+      "${PROD}/usr/libexec/bluecat/ostree.real"
+    chmod 0755 "${PROD}/usr/bin/ostree"
 
     ( cd "${PROD}" && find . | cpio -o -H newc --quiet | gzip -9 ) \
       > "${ADD_ROOT}/images/product.img"

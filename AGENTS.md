@@ -49,8 +49,13 @@ Before marking shell/workflow changes done, run the relevant checks:
   UI/default completion flow; do not force graphical mode or automatic reboot.
   Do not add partitioning, user creation, LUKS, locale, or keyboard choices
   unless explicitly requested.
-- The image install currently uses `ostreecontainer --no-signature-verification`.
-  This means TLS transport only, not container signature verification.
+- The ISO image install uses Anaconda `ostreecontainer` with container signature
+  verification enabled. The ISO product image carries the bluecat Cosign public
+  key, containers policy, and `use-sigstore-attachments` registry config needed
+  by the installer runtime. It also wraps `/usr/bin/ostree` in the installer
+  runtime to inject `--enforce-container-sigpolicy` for `ostree container image
+  deploy`, because newer ostree ignores the old `--no-signature-verification`
+  switch for enforcement unless that flag is present.
 - `build:image` and `push` run rootless for performance. Do not switch them to
   rootful without re-evaluating overlay performance.
 - `build:iso` starts as the normal user but uses rootful podman internally for

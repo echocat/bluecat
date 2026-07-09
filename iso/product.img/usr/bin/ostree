@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+real=/usr/libexec/bluecat/ostree.real
+
+if [[ "$#" -ge 3 && "$1" == "container" && "$2" == "image" && "$3" == "deploy" ]]; then
+  has_enforce=0
+  has_no_signature_verification=0
+
+  for arg in "$@"; do
+    if [[ "${arg}" == "--enforce-container-sigpolicy" ]]; then
+      has_enforce=1
+    elif [[ "${arg}" == "--no-signature-verification" ]]; then
+      has_no_signature_verification=1
+    fi
+  done
+
+  if [[ "${has_enforce}" == "0" && "${has_no_signature_verification}" == "0" ]]; then
+    exec "${real}" container image deploy --enforce-container-sigpolicy "${@:4}"
+  fi
+fi
+
+exec "${real}" "$@"

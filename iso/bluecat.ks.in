@@ -4,4 +4,4 @@
 # the installer.
 network --bootproto=dhcp --device=link --activate --onboot=on
 
-ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --no-signature-verification --stateroot=bluecat
+ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --stateroot=bluecat
