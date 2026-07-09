@@ -133,8 +133,12 @@ rpm-ostree install -y \
   mangohud.i686 \
   gamescope \
   vkBasalt.x86_64 \
-  vkBasalt.i686 \
-  winetricks
+  vkBasalt.i686
+
+retry curl -fsSL --retry 3 \
+  -o /usr/bin/winetricks \
+  https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
+chmod +x /usr/bin/winetricks
 
 # ---------------------------------------------------------------------------
 # Virtualization. Packages are only installed here; the libvirt/incus daemons
