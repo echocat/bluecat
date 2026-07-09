@@ -1,5 +1,5 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
-//MISE description="Render the echocat branding assets from SVG into system_files/ and iso/"
+//MISE description="Render the echocat branding assets from SVG into image/rootfs/ and iso/"
 //MISE dir="{{config_root}}"
 //MISE tools={deno="latest"}
 // ===========================================================================
@@ -22,8 +22,8 @@ const SRC_SYMBOL = `${SRC_DIR}/bluecat-logo-symbol.svg`; // square mark
 const SRC_FULL = `${SRC_DIR}/bluecat-logo.svg`; // mark + wordmark
 const SRC_WHITE = `${SRC_DIR}/bluecat-logo-white.svg`; // white mark + wordmark
 
-// --- output roots (inside system_files/, copied into the image at /) --------
-const OUT = "system_files";
+// --- output roots (inside image/rootfs/, copied into the image at /) --------
+const OUT = "image/rootfs";
 const PIXMAPS = `${OUT}/usr/share/pixmaps`;
 const HICOLOR = `${OUT}/usr/share/icons/hicolor`;
 const SDDM_ASSETS = `${OUT}/usr/share/sddm/themes/bluecat`;
@@ -35,7 +35,7 @@ const ISO_ANACONDA_ROOTFS = "iso/product.img";
 // spinner theme AFTER the last rpm-ostree transaction.
 const BRANDING = `${OUT}/usr/share/bluecat/branding`;
 
-// Icon name referenced by os-release LOGO (see container/image-setup.sh).
+// Icon name referenced by os-release LOGO (see image/setup/image-setup.sh).
 const ICON_NAME = "bluecat-logo-icon";
 // Icon sizes for the hicolor theme.
 const ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256];
@@ -131,5 +131,5 @@ await writeFile(
 );
 
 console.log();
-console.log("==> Branding assets generated under system_files/ and iso/.");
+console.log("==> Branding assets generated under image/rootfs/ and iso/.");
 console.log("    Review + commit the generated files.");

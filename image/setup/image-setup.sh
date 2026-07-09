@@ -7,7 +7,7 @@
 # =============================================================================
 set -euo pipefail
 
-# shellcheck source=container/common.sh
+# shellcheck source=image/setup/common.sh
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
 echo "==> Enabling RPM Fusion (runtime packages: NVIDIA userspace)"
@@ -112,7 +112,7 @@ rpm-ostree install -y \
 # ---------------------------------------------------------------------------
 # xone firmware: the proprietary Microsoft firmware is NOT shipped and NOT
 # downloaded during the build. The image only ships the local opt-in activator
-# /usr/bin/enable-xone-firmware (via system_files/); cabextract is the tool it
+# /usr/bin/enable-xone-firmware (via image/rootfs/); cabextract is the tool it
 # needs at runtime to extract the firmware after the user explicitly opts in.
 # See docs/xbox-firmware.md.
 # ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ rpm-ostree install -y ghostty
 
 # ---------------------------------------------------------------------------
 # Nushell from the upstream Gemfury repo. The repo definition is shipped via
-# system_files/etc/yum.repos.d/fury-nushell.repo. gpgcheck=0 is used because the
+# image/rootfs/etc/yum.repos.d/fury-nushell.repo. gpgcheck=0 is used because the
 # Gemfury RPMs are NOT GPG-signed (the key only signs repo metadata); integrity
 # relies on HTTPS transport. See the comment in that .repo file. The repo is
 # left enabled so nushell keeps receiving updates via `rpm-ostree upgrade`.
@@ -207,7 +207,7 @@ restorecon -v '/usr/bin/hbbr'
 # NVIDIA: modeset (module option) + nouveau/nova_core blacklist.
 #
 # The actual kernel command-line args are shipped the bootc-native way via
-# system_files/usr/lib/bootc/kargs.d/00-nvidia.toml. The modprobe option below
+# image/rootfs/usr/lib/bootc/kargs.d/00-nvidia.toml. The modprobe option below
 # is a separate layer (module load-time option) and complements them.
 # ---------------------------------------------------------------------------
 echo "==> Enabling NVIDIA modeset"
@@ -255,7 +255,7 @@ EOF
 # We therefore:
 #   1. replace fedora-logos with the neutral, trademark-free generic-logos,
 #   2. rewrite os-release to identify the system as "bluecat" (ID_LIKE=fedora),
-#   3. (optional) apply echocat branding assets shipped via system_files/.
+#   3. (optional) apply echocat branding assets shipped via image/rootfs/.
 # ---------------------------------------------------------------------------
 echo "==> Rebranding: replacing fedora-logos with generic-logos"
 # fedora-logos carries the Fedora trademarks; generic-logos is the neutral
@@ -285,7 +285,7 @@ fi
 # are system-wide), so we remove it from the image entirely. Brave cannot be
 # baked into the image as a Flatpak (Flatpaks live in /var, which is not part
 # of the immutable image), so it is installed on first boot by
-# bluecat-install-brave.service (see system_files/). Flathub is enabled on
+# bluecat-install-brave.service (see image/rootfs/). Flathub is enabled on
 # first boot by bluecat-add-flathub.service.
 #
 # As with the logos swap above, use `dnf remove`, NOT `rpm-ostree override
@@ -297,7 +297,7 @@ else
   echo "    firefox not installed; nothing to remove"
 fi
 
-# Enable our first-boot units (shipped via system_files/) using the preset we
+# Enable our first-boot units (shipped via image/rootfs/) using the preset we
 # ship in /usr/lib/systemd/system-preset/70-bluecat.preset. This is the same
 # mechanism Fedora uses for flatpak-add-fedora-repos.service and creates the
 # multi-user.target.wants symlinks in the image.
@@ -334,7 +334,7 @@ ln -sf ../usr/lib/os-release /etc/os-release
 echo "bluecat release ${FEDORA_VERSION_ID}" > /etc/system-release
 
 # echocat branding assets: rendered by `mise branding` from assets/branding/
-# and shipped via system_files/, so they are already in place at this point
+# and shipped via image/rootfs/, so they are already in place at this point
 # (icon, full logo, Plymouth watermark, SDDM logo). The os-release LOGO above
 # references "bluecat-logo-icon"; the matching icon is at
 # /usr/share/pixmaps/bluecat-logo-icon.svg and in the hicolor theme.
@@ -343,7 +343,7 @@ if [[ -e /usr/share/pixmaps/bluecat-logo-icon.svg ]]; then
   echo "    logo icon present: /usr/share/pixmaps/bluecat-logo-icon.svg"
 else
   echo "    NOTE: no bluecat logo icon found; run 'mise branding' and commit" \
-       "the generated system_files/ assets. generic-logos remains the base."
+       "the generated image/rootfs/ assets. generic-logos remains the base."
 fi
 
 # KDE Plasma's application launcher defaults to the active icon theme's
@@ -390,7 +390,7 @@ fi
 # directive to set). So the watermark must live at spinner/watermark.png.
 #
 # IMPORTANT: that directory is owned by the rpm package plymouth-theme-spinner.
-# We must NOT ship our watermark straight there via system_files/, because a
+# We must NOT ship our watermark straight there via image/rootfs/, because a
 # later `rpm-ostree install`/`override` re-checks out the package directory and
 # drops non-packaged files (this is exactly why it went missing before). So the
 # branding task stages the watermark in our own, non-packaged directory
@@ -408,7 +408,7 @@ if [[ -e "${PLY_SRC}" && -d /usr/share/plymouth/themes/spinner ]]; then
   echo "    Plymouth watermark installed: ${PLY_DST}"
 else
   echo "    NOTE: no staged Plymouth watermark (${PLY_SRC}); run 'mise branding'" \
-       "and commit the generated system_files/ assets."
+       "and commit the generated image/rootfs/ assets."
 fi
 
 echo "==> Rebuilding initramfs for bluecat boot splash"

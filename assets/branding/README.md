@@ -1,7 +1,7 @@
 # echocat branding assets
 
 This directory holds the **echocat / bluecat** branding: the source artwork and
-the master file it is derived from. The image assets under `system_files/` are
+the master file it is derived from. The image assets under `image/rootfs/` are
 **generated** from these sources by the `mise branding` task.
 
 ## Source files (edit these)
@@ -22,9 +22,9 @@ mise branding
 ```
 
 This renders the SVGs (pure Deno via `@resvg/resvg-wasm`, no CLI dependency)
-into `system_files/`, which the build copies into the image:
+into `image/rootfs/`, which the build copies into the image:
 
-| Generated file (under `system_files/`)                             | Visible surface                          |
+| Generated file (under `image/rootfs/`)                              | Visible surface                          |
 |--------------------------------------------------------------------|------------------------------------------|
 | `usr/share/pixmaps/bluecat-logo-icon.svg`                          | os-release `LOGO` / KDE About            |
 | `usr/share/icons/hicolor/scalable/apps/bluecat-logo-icon.svg`      | scalable app icon                        |
@@ -47,7 +47,7 @@ and commit the result whenever a source SVG changes.
 
 - **Plymouth**: the watermark is **staged** in `usr/share/bluecat/branding/`
   (not shipped straight into the rpm-managed `spinner` theme dir, which
-  `rpm-ostree` would clean out). `image-setup.sh` copies it to
+  `rpm-ostree` would clean out). `image/setup/image-setup.sh` copies it to
   `/usr/share/plymouth/themes/spinner/watermark.png` **after** the last
   `rpm-ostree` transaction. The default `bgrt` theme reads the watermark from
   the spinner dir. The default theme is not force-switched (testable on real
@@ -57,7 +57,7 @@ and commit the result whenever a source SVG changes.
   and shows bluecat. The **boot** splash and the LUKS password prompt are
   rendered from the initramfs, which bakes in the Plymouth theme at the time it
   is generated. Consequences:
-  - **Fresh install** (Anaconda / bootc-installer from the image): the
+  - **Fresh ISO install path** (Anaconda installs the embedded bootc image): the
     image build regenerates the shipped initramfs after applying the bluecat
     watermark, explicitly adding dracut's `ostree` module -> boot splash shows
     bluecat.
@@ -65,14 +65,13 @@ and commit the result whenever a source SVG changes.
     watermark) is kept until it is regenerated, so the boot splash may still
     show Fedora. A user can force it with `sudo rpm-ostree initramfs --enable`
     (regenerates the initramfs from the current deployment).
-  - We do **not** call `rpm-ostree initramfs --enable` from Anaconda `%post`:
-    `rpm-ostree` needs its daemon and is not available in the installer script
-    context. If the image build rebuilds initramfs manually, it must use dracut
-    with OSTree support (`--add ostree`), otherwise switch-root can fail.
+  - We do **not** call `rpm-ostree initramfs --enable` from installer scripts.
+    If the image build rebuilds initramfs manually, it must use dracut with
+    OSTree support (`--add ostree`), otherwise switch-root can fail.
 - **SDDM**: the logo assets are provided under `usr/share/sddm/themes/bluecat/`.
   Wiring a specific SDDM theme/config to display them is left as a documented
   step, as it depends on the chosen SDDM theme.
-- **KDE application launcher**: `image-setup.sh` maps the generated
+- **KDE application launcher**: `image/setup/image-setup.sh` maps the generated
   `bluecat-logo-icon.svg` to Plasma's default `start-here` / `start-here-kde`
   icon names after package transactions have completed, including Breeze theme
   slots when present.

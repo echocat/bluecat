@@ -1,7 +1,30 @@
-# Bring up networking - this is the ONE thing we must set, because
-# `ostreecontainer` below fetches the image from the registry over the network.
-# It does not lock anything down: the user can still change network settings in
-# the installer.
-network --bootproto=dhcp --device=link --activate --onboot=on
+rootpw --lock
 
-ostreecontainer --url=@@IMAGE_REF@@ --transport=registry --stateroot=bluecat
+bootc --source-imgref oci:/run/install/repo/images/bluecat.oci:bluecat:local --target-imgref @@TARGET_IMAGE_REF@@ --stateroot bluecat
+
+%post --nochroot --erroronfail
+set -euo pipefail
+
+target_ref="@@TARGET_IMAGE_REF@@"
+unverified_ref="ostree-unverified-registry:${target_ref}"
+signed_ref="ostree-image-signed:registry:${target_ref}"
+changed=false
+
+for origin in /mnt/sysimage/ostree/deploy/bluecat/deploy/*.origin; do
+  [[ -e "${origin}" ]] || continue
+  if grep -qF "${unverified_ref}" "${origin}"; then
+    sed -i "s|${unverified_ref}|${signed_ref}|g" "${origin}"
+    changed=true
+  fi
+done
+
+if [[ "${changed}" != true ]]; then
+  echo "ERROR: did not find installed origin containing ${unverified_ref}" >&2
+  exit 1
+fi
+
+if ! grep -R -qF "${signed_ref}" /mnt/sysimage/ostree/deploy/bluecat/deploy/*.origin; then
+  echo "ERROR: installed origin does not contain ${signed_ref}" >&2
+  exit 1
+fi
+%end

@@ -17,7 +17,7 @@
 # =============================================================================
 set -euo pipefail
 
-# shellcheck source=container/common.sh
+# shellcheck source=image/setup/common.sh
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
 : "${XONE_REPO:=https://github.com/medusalix/xone.git}"

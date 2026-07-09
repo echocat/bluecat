@@ -7,23 +7,24 @@
 ├── mise.toml                # mise config (tools + task discovery)
 ├── mise-tasks/              # self-contained file-tasks -> `mise <name>`
 │   ├── build/               # mise build:image (local image build) + build:iso (offline installer ISO)
+│   ├── publish/             # mise publish:image/publish:iso
 │   ├── keys                 # mise keys         (generate MOK + Cosign keys)
 │   ├── verify-keys          # mise verify-keys  (validate MOK, Deno/TS)
-│   ├── push                 # mise push         (push to registry, bash)
 │   ├── branding             # mise branding     (render logo assets, Deno/TS)
 │   ├── syntax               # mise syntax
 │   └── lint/                # mise lint (+ lint:shell/deno/container/workflows/legal)
 ├── build.env                # central variables (version, registry, xone ref)
 ├── Containerfile            # 2-stage bootc build
 ├── certs/                   # public cert (mok.der/crt); mok.key = private!
-├── container/               # scripts that run INSIDE the container build
+├── image/setup/             # scripts that run INSIDE the image build
 │   ├── build-modules.sh     # stage 1: build + sign modules
 │   └── image-setup.sh       # stage 2: runtime + defaults + rebrand
+├── iso/                     # offline installer ISO Kickstart, rootfs and product.img branding
 ├── assets/branding/         # echocat branding sources + `mise branding`
 ├── docs/                    # legal / NVIDIA / Xbox-firmware documentation
 ├── LICENSE                  # MIT (project's own files only)
 ├── NOTICE.md                # third-party attributions
-└── system_files/            # files copied verbatim into the image (/)
+└── image/rootfs/            # files copied verbatim into the image (/)
     └── usr/bin/enable-xone-firmware  # local opt-in Xbox firmware activator
 ```
 
@@ -77,32 +78,32 @@ The result is a bootc image that an existing Kinoite system is switched to via
    mise build:image
    # ghcr.io/echocat/bluecat:local is created in podman
    ```
-4. Build a small network-install ISO:
-   Uses Anaconda + an embedded Kickstart (NOT `bootc-image-builder`, which
-   rejects our rebranded `ID="bluecat"`). The ISO does NOT embed the OS
-   payload: it installs the image from the registry at install time, so it
-   stays small and valid across image changes. It is fully rebranded away
-   from Fedora (volume id, GRUB menu, [iso/rootfs/](iso/rootfs) docs and the Anaconda
-   installer title/logo via a temporary `product.img` built from bare files in
-   [iso/product.img/](iso/product.img)).
-   **requires** the image to be pushed and signed (step 3) under `ISO_IMAGE_TAG`
-   (default the Fedora major, e.g. `44`) and the registry reachable at install
-   time. Anaconda verifies the image with the bluecat Cosign public key embedded
-   into the ISO product image.
+4. Build the rolling offline installer ISO:
+   Uses Fedora's Anaconda boot ISO plus `mkksiso` to embed a Kickstart and the
+   locally built bootc image as `/images/bluecat.oci`. The initial
+   deployment is offline; the installed system records the release image ref for
+   later updates.
    ```shell
    mise build:iso
-   # output/bluecat-netinstall.iso is created
+   # output/bluecat.iso, output/bluecat.iso.sha256 and output/bluecat.iso.md5 are created
+   ```
+5. Publish the rolling ISO to S3-compatible storage:
+   ```shell
+   mise publish:iso
+   # https://download.bluecat.echocat.org/latest/bluecat.iso
    ```
 
 
 ## CI (GitHub Actions)
 
-`.github/workflows/build.yaml` builds the image and decides what to push:
+`.github/workflows/build.yaml` builds the image, decides what to push and, for
+release builds, publishes the rolling ISO:
 
 | Trigger                        | Action                                        |
 |--------------------------------|-----------------------------------------------|
-| push to `main`                 | build + `mise push release`                   |
-| PR labeled `test image`        | build + `mise push pr <number>`               |
+| push to `main`                 | build image + build ISO + `mise publish:image release` + ISO publish |
+| schedule on `main`             | build image + build ISO + `mise publish:image release` + ISO publish |
+| PR labeled `test image`        | build image + build ISO + `mise publish:image pr <number>` |
 | other branches / events        | (not triggered) — build locally, no push      |
 
 The PR path only fires when the `test image` label is **added** to a PR
@@ -121,6 +122,21 @@ secrets:
 | `COSIGN_KEY`      | content of `certs/cosign.key` (private)  |
 | `COSIGN_PUB`      | content of `certs/cosign.pub`            |
 | `COSIGN_PASSWORD` | password used for `certs/cosign.key`     |
+
+For release builds, the workflow builds the rolling offline installer ISO before any
+image tag is published. Only after both local artifacts build successfully does it
+run `mise publish:image release`, followed by the ISO upload. It uploads
+`bluecat.iso`, `bluecat.iso.sha256` and `bluecat.iso.md5` to the configured
+S3-compatible bucket/prefix. The public URL is:
+
+<https://download.bluecat.echocat.org/latest/bluecat.iso>
+
+Required ISO upload secrets:
+
+| Secret                 | Content                         |
+|------------------------|---------------------------------|
+| `ISO_S3_ACCESS_KEY_ID`     | S3/R2 access key                |
+| `ISO_S3_SECRET_ACCESS_KEY` | S3/R2 secret access key         |
 
 `.github/workflows/lint.yaml` runs `mise lint` (ShellCheck, Deno checks,
 hadolint, workflow YAML) without secrets — safe for PRs.

@@ -10,8 +10,8 @@
 # which is dramatically faster than the rootful storage on this host (the
 # system storage.conf forces overlay metacopy=on with "Native Overlay Diff:
 # false", which makes even COPY layers crawl - especially under WSL2). The
-# image therefore lands in the user storage; `mise build:iso` transfers it into
-# the root storage on demand (see that task).
+# image therefore lands in the user storage. `mise build:iso` exports that local
+# image as an OCI layout and embeds it into the offline installer ISO.
 #
 # Prerequisite: certs/ exists (run `mise keys` first).
 # =============================================================================
@@ -81,7 +81,7 @@ BUILD_ARGS+=(--annotation "org.opencontainers.image.revision=${IMAGE_REVISION}")
 BUILD_ARGS+=(--annotation "org.opencontainers.image.version=${IMAGE_VERSION}")
 BUILD_ARGS+=(--annotation "org.opencontainers.image.base.name=${IMAGE_BASE_NAME}")
 
-# The build always produces the fixed local tag. `mise push` re-tags this
+# The build always produces the fixed local tag. `mise publish:image` re-tags this
 # image to the real (timestamped / release / pr) tags and pushes them.
 LOCAL_REF="${IMAGE_REGISTRY}/${IMAGE_NAME}:${LOCAL_IMAGE_TAG}"
 echo "==> Building ${LOCAL_REF}"
@@ -105,5 +105,5 @@ podman "${GLOBAL_ARGS[@]}" build \
 echo
 echo "==> Done: ${LOCAL_REF}"
 echo "    Inspect locally: podman images | grep bluecat"
-echo "    Push:            mise push release    (or: mise push pr <number>)"
-echo "    ISO:             mise build:iso   (transfers this image to the root storage internally)"
+echo "    ISO:             mise build:iso"
+echo "    Publish:         mise publish:image release    (or: mise publish:image pr <number>)"

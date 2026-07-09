@@ -13,8 +13,8 @@ retaining Fedora compatibility through `ID_LIKE=fedora`.
 The project builds:
 
 - An OCI image published to GHCR.
-- A small Anaconda netinstall ISO that installs the pushed image from the
-  registry via `ostreecontainer`.
+- An offline Anaconda installer ISO that embeds the locally built OCI image
+  payload as `/images/bluecat.oci`.
 - Branding assets and installer/ISO rebranding so user-facing Fedora branding is
   removed where this project controls it.
 
@@ -23,9 +23,11 @@ The project builds:
 Use `mise` tasks as the public project interface:
 
 - `mise build:image` builds the local OCI image.
-- `mise push release` pushes release tags for `main` builds.
-- `mise push pr <number>` pushes the PR test image tag only.
-- `mise build:iso` builds the netinstall ISO.
+- `mise publish:image release` pushes release tags for `main` builds.
+- `mise publish:image pr <number>` pushes the PR test image tag only.
+- `mise build:iso` builds the offline installer ISO.
+- `mise publish:iso` uploads `bluecat.iso`, `bluecat.iso.sha256`, and
+  `bluecat.iso.md5` to S3-compatible storage.
 - `mise verify-keys` validates Secure Boot MOK signing material.
 - `mise lint` runs the full static verification suite.
 - `mise tasks` lists available tasks.
@@ -42,22 +44,12 @@ Before marking shell/workflow changes done, run the relevant checks:
 
 - Keep `ID="bluecat"` in `/usr/lib/os-release`. Do not change it to
   `ID=fedora` to make tools happy.
-- The ISO is a netinstall ISO. Do not bake the OS payload into it unless the
-  project explicitly changes direction.
-- Keep the Kickstart minimal and interactive. It should activate networking and
-  point Anaconda at the image with `ostreecontainer`. Let Anaconda use its normal
-  UI/default completion flow; do not force graphical mode or automatic reboot.
-  Do not add partitioning, user creation, LUKS, locale, or keyboard choices
-  unless explicitly requested.
-- The ISO image install uses Anaconda `ostreecontainer` with container signature
-  verification enabled. The ISO product image carries the bluecat Cosign public
-  key, containers policy, and `use-sigstore-attachments` registry config needed
-  by the installer runtime. It also wraps `/usr/bin/ostree` in the installer
-  runtime to inject `--enforce-container-sigpolicy` for `ostree container image
-  deploy`, because newer ostree ignores the old `--no-signature-verification`
-  switch for enforcement unless that flag is present.
-- `build:image` and `push` run rootless for performance. Do not switch them to
-  rootful without re-evaluating overlay performance.
+- The ISO is an offline Anaconda installer ISO. It embeds the local bootc image
+  as an OCI layout and installs it with Anaconda's `bootc` Kickstart command.
+  Do not switch back to Titanoboa unless the project explicitly changes
+  direction.
+- `build:image` and `publish:image` run rootless for performance. Do not switch
+  them to rootful without re-evaluating overlay performance.
 - `build:iso` starts as the normal user but uses rootful podman internally for
   the `mkksiso` step because loop devices are required.
 - Do not enable `libvirt` or `incus` services by default. They are installed
@@ -69,12 +61,11 @@ Before marking shell/workflow changes done, run the relevant checks:
 
 ## CI Model
 
-The workflows are intentionally split by artifact:
+`.github/workflows/build.yaml` is the artifact workflow. It builds the OCI image
+and the ISO locally first, then publishes artifacts only after both builds
+succeeded.
 
-- `.github/workflows/build.yaml` is the `build:image` workflow.
-- `.github/workflows/build-iso.yaml` is the `build:iso` workflow.
-
-`build:image` runs:
+The artifact workflow runs:
 
 - On every push to `main`.
 - Once per day from `main`.
@@ -89,59 +80,54 @@ For release builds it pushes:
 Timestamp-tag retention is controlled with `RELEASE_TAG_RETENTION` and is set to
 `3` in CI. PR image push behavior must remain independent from this cleanup.
 
-`build:iso` runs:
+For release builds, `build:iso` runs before `publish:image release`, so a broken
+ISO build prevents publishing the release image tags. The workflow then runs
+`publish:image release` and finally `publish:iso`. PR test image builds also run
+the local ISO build as a gate, but do not publish the ISO. `publish:iso` uploads
+`bluecat.iso`, `bluecat.iso.sha256`, and `bluecat.iso.md5` to the configured
+S3-compatible storage under `s3://bluecat/latest/`. The public ISO URL is
+`https://download.bluecat.echocat.org/latest/bluecat.iso`. GitHub Releases are
+not used for ISO publishing.
 
-- On every push to `main`.
-- Once per week from `main`.
-
-It publishes the rolling release asset as `bluecat.iso` under the `rolling`
-GitHub release and overwrites that asset on each run.
-
-Both artifact workflows use concurrency cancellation so a newer queued run on
-the same branch cancels an older running one.
+The workflow uses concurrency cancellation so a newer queued run on the same
+branch cancels an older running one.
 
 ## ISO And Anaconda Gotchas
 
-- `bootc-image-builder` is not used for the ISO path because it selects build
-  recipes from `os-release` and does not know the `bluecat` distro ID.
-- Anaconda's `ostreecontainer` path works with `ID="bluecat"`, so the netinstall
-  ISO keeps the rebrand intact.
-- `mkksiso -a` maps every added path to `os.path.basename(path)` at the ISO
-  root. It does not support `SRC=DEST` syntax.
-- Files that should land in the ISO root live under `iso/rootfs/`. Because
-  `mkksiso -a` maps every added path to `os.path.basename(path)`, pass the
-  top-level entries from `iso/rootfs/` rather than the directory itself.
-- Files that should land inside Anaconda's `product.img` live under
-  `iso/product.img/`. The ISO build may package them into a
-  temporary `/images/product.img`, but `product.img` itself is a build artifact
-  and should not be committed.
+- `mise build:iso` exports the local `:local` image as
+  `output/bluecat.oci` and embeds it under `/images/bluecat.oci` in the ISO.
+- `iso/bluecat.ks.in` uses Anaconda's `bootc` Kickstart command with
+  `oci:/run/install/repo/images/bluecat.oci:bluecat:local` as source and the
+  configured release image ref as update target.
+- Files that should land in the ISO root live under `iso/rootfs/`. Files that
+  should land inside Anaconda's temporary `product.img` live under
+  `iso/product.img/` and are packaged during `mise build:iso`.
 - `mkksiso -V` sets the ISO volume ID and rewrites GRUB stage2/LABEL references
-  to match. Do not run broad replacements like `-R "Fedora" "bluecat"` after
-  that, because it can corrupt `inst.stage2=hd:LABEL=...` and make the ISO fail
-  to boot.
-- Only replace human-readable GRUB menu strings with targeted `-R` rules.
+  to match. Do not run broad replacements like `-R "Fedora" "bluecat"`; only
+  replace human-readable GRUB menu strings with targeted `-R` rules.
+- ISO publication uses generic S3 variable names (`ISO_S3_BUCKET`, `ISO_S3_PREFIX`,
+  `ISO_S3_ENDPOINT_URL`) even though the current backend is Cloudflare R2.
 
 ## Key Files
 
 - `Containerfile` - image build stages and build arguments.
-- `container/image-setup.sh` - package installation, OS rebranding, and most
-  image customization.
+- `image/setup/image-setup.sh` - package installation, OS rebranding,
+  and most image customization.
+- `iso/bluecat.ks.in` - offline bootc Kickstart template.
+- `iso/rootfs/` - files added to the ISO root.
+- `iso/product.img/` - Anaconda product image branding files.
 - `build.env` - central build variables. Treat it carefully; it may be protected
   by local read rules.
 - `mise-tasks/build/image` - rootless local image build.
-- `mise-tasks/build/iso` - Anaconda netinstall ISO build and ISO/installer
-  branding.
-- `mise-tasks/push` - release and PR tag/push logic plus release timestamp tag
+- `mise-tasks/build/iso` - offline Anaconda installer ISO build.
+- `mise-tasks/publish/image` - release and PR tag/push logic plus release timestamp tag
   retention.
+- `mise-tasks/publish/iso` - S3-compatible rolling ISO upload.
 - `mise-tasks/verify-keys` - Deno-based MOK key/cert validation.
-- `.github/workflows/build.yaml` - image CI workflow.
-- `.github/workflows/build-iso.yaml` - ISO CI workflow and rolling release asset
-  upload.
-- `iso/bluecat.ks.in` - minimal Kickstart template.
-- `iso/product.img/` - bare Anaconda product image branding files.
-- `iso/rootfs/` - files added to the ISO root, including `/README.txt`.
-- `system_files/` - files copied into the final image.
-- `system_files/usr/lib/bootc/kargs.d/00-nvidia.toml` - NVIDIA-related bootc
+- `.github/workflows/build.yaml` - OCI image CI workflow plus release ISO build
+  and S3-compatible rolling ISO upload.
+- `image/rootfs/` - files copied into the final image.
+- `image/rootfs/usr/lib/bootc/kargs.d/00-nvidia.toml` - NVIDIA-related bootc
   kernel arguments.
 
 ## Environment Notes

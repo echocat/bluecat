@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Re-tag the local image and push it to the registry"
+#MISE description="Re-tag the local image and publish it to the registry"
 #MISE dir="{{config_root}}"
 #USAGE arg "[mode]" help="What to push: 'release' (main) or 'pr'" {
 #USAGE   choices "release" "pr"
@@ -57,7 +57,7 @@ fi
 if [[ -z "${MODE}" ]]; then
   echo "==> No push mode given."
   echo "    Pushing without an explicit mode is not acceptable."
-  echo "    Use 'mise push release' or 'mise push pr <number>'."
+  echo "    Use 'mise publish:image release' or 'mise publish:image pr <number>'."
   exit 0
 fi
 
@@ -94,7 +94,7 @@ tag_and_push() {
   local tag="$1"
   echo "==> Tag + push ${REPO}:${tag}"
   podman tag "${LOCAL_REF}" "${REPO}:${tag}"
-  podman push "${REPO}:${tag}"
+  podman push --compression-format=zstd --compression-level=19 --force-compression "${REPO}:${tag}"
   sign_image "${tag}"
 }
 
@@ -214,7 +214,7 @@ case "${MODE}" in
 
   pr)
     if [[ -z "${NUMBER}" ]]; then
-      echo "ERROR: mode 'pr' requires a PR number: mise push pr <number>" >&2
+      echo "ERROR: mode 'pr' requires a PR number: mise publish:image pr <number>" >&2
       exit 1
     fi
     echo "==> pr: pushing pr-${NUMBER} only"
@@ -227,4 +227,4 @@ case "${MODE}" in
     ;;
 esac
 
-echo "==> Push done."
+echo "==> Image publish done."

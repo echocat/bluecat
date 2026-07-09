@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#MISE description="Upload the rolling ISO and checksums to S3-compatible storage"
+#MISE dir="{{config_root}}"
+# =============================================================================
+# publish:iso  -  upload output/bluecat.iso to S3-compatible storage
+# =============================================================================
+# Defaults match the public rolling URL:
+#   https://download.bluecat.echocat.org/latest/bluecat.iso
+#
+# Required for Cloudflare R2 / S3-compatible providers:
+#   ISO_S3_ACCESS_KEY_ID
+#   ISO_S3_SECRET_ACCESS_KEY
+#   ISO_S3_ENDPOINT_URL  (for R2; omit for AWS S3)
+#   ISO_S3_BUCKET        bluecat
+#   ISO_PUBLIC_BASE_URL  https://download.bluecat.echocat.org
+#
+# Optional:
+#   ISO_S3_PREFIX        default: latest
+#   ISO_S3_REGION        default: auto when ISO_S3_ENDPOINT_URL is set
+# =============================================================================
+set -euo pipefail
+
+if ! command -v s5cmd >/dev/null 2>&1; then
+  echo "ERROR: s5cmd not found. Run this task through mise." >&2
+  exit 1
+fi
+
+OUTPUT_DIR="output"
+ISO="${OUTPUT_DIR}/bluecat.iso"
+SHA256="${ISO}.sha256"
+MD5="${ISO}.md5"
+
+for file in "${ISO}" "${SHA256}" "${MD5}"; do
+  if [[ ! -f "${file}" ]]; then
+    echo "ERROR: missing ${file}. Run \`mise build:iso\` first." >&2
+    exit 1
+  fi
+done
+
+S3_BUCKET="${ISO_S3_BUCKET:-}"
+S3_PREFIX="${ISO_S3_PREFIX:-latest}"
+S3_PREFIX="${S3_PREFIX#/}"
+S3_PREFIX="${S3_PREFIX%/}"
+ISO_PUBLIC_BASE_URL="${ISO_PUBLIC_BASE_URL:-https://download.bluecat.echocat.org}"
+ISO_PUBLIC_BASE_URL="${ISO_PUBLIC_BASE_URL%/}"
+
+if [[ -z "${S3_BUCKET}" ]]; then
+  echo "ERROR: ISO_S3_BUCKET must not be empty." >&2
+  exit 1
+fi
+
+export AWS_ACCESS_KEY_ID="${ISO_S3_ACCESS_KEY_ID:-}"
+export AWS_SECRET_ACCESS_KEY="${ISO_S3_SECRET_ACCESS_KEY:-}"
+export AWS_REGION="${ISO_S3_REGION:-}"
+if [[ -n "${ISO_S3_ENDPOINT_URL:-}" && -z "${AWS_REGION:-}" ]]; then
+  export AWS_REGION="auto"
+fi
+
+s5cmd_args=()
+if [[ -n "${ISO_S3_ENDPOINT_URL:-}" ]]; then
+  s5cmd_args+=(--endpoint-url "${ISO_S3_ENDPOINT_URL}")
+fi
+
+s3_dest() {
+  local name="$1"
+  if [[ -n "${S3_PREFIX}" ]]; then
+    printf 's3://%s/%s/%s' "${S3_BUCKET}" "${S3_PREFIX}" "${name}"
+  else
+    printf 's3://%s/%s' "${S3_BUCKET}" "${name}"
+  fi
+}
+
+echo "==> Uploading rolling ISO to s3://${S3_BUCKET}/${S3_PREFIX}"
+s5cmd "${s5cmd_args[@]}" cp "${ISO}" "$(s3_dest bluecat.iso)"
+s5cmd "${s5cmd_args[@]}" cp "${SHA256}" "$(s3_dest bluecat.iso.sha256)"
+s5cmd "${s5cmd_args[@]}" cp "${MD5}" "$(s3_dest bluecat.iso.md5)"
+
+echo
+if [[ -n "${S3_PREFIX}" ]]; then
+  echo "==> Uploaded: ${ISO_PUBLIC_BASE_URL}/${S3_PREFIX}/bluecat.iso"
+else
+  echo "==> Uploaded: ${ISO_PUBLIC_BASE_URL}/bluecat.iso"
+fi

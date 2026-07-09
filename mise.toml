@@ -3,10 +3,20 @@ shellcheck = "0.10.0"
 hadolint = "2.12.0"
 yq = "4.44.3"
 deno = "2.9.1"
-cosign = "v3.1.1"
-
-[tool_alias]
-"aqua:sigstore/cosign" = "cosign"
+cosign = "3.1.1"
+s5cmd = "2.3.0"
 
 [settings]
 env_file = ".env"
+
+[tasks."build"]
+run = [
+    { task = "build:image" },
+    { task = "build:iso" },
+]
+
+[env]
+ISO_S3_ENDPOINT_URL = "https://76cbc9ff3d45b6d0e9963e41ddeb9b71.eu.r2.cloudflarestorage.com"
+ISO_S3_BUCKET = "bluecat"
+ISO_S3_PREFIX = "latest"
+ISO_PUBLIC_BASE_URL = "https://download.bluecat.echocat.org"

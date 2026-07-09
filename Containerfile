@@ -31,8 +31,8 @@ ARG XONE_REF
 COPY certs/mok.der /tmp/certs/mok.der
 COPY certs/mok.crt /tmp/certs/mok.crt
 
-COPY container/common.sh /tmp/common.sh
-COPY container/build-modules.sh /tmp/build-modules.sh
+COPY image/setup/common.sh /tmp/common.sh
+COPY image/setup/build-modules.sh /tmp/build-modules.sh
 
 # Enable RPM Fusion (free + nonfree) for the NVIDIA akmod, install the build
 # tooling, build + sign the modules. The result lives under
@@ -78,7 +78,7 @@ LABEL org.opencontainers.image.title="bluecat" \
 # ---------------------------------------------------------------------------
 COPY certs/mok.der /etc/pki/echocat/mok.der
 COPY certs/cosign.pub /etc/pki/containers/bluecat-cosign.pub
-COPY system_files/ /
+COPY image/rootfs/ /
 
 # ---------------------------------------------------------------------------
 # Ship the legal/attribution documentation inside the image so it travels with
@@ -95,8 +95,8 @@ COPY LICENSE /usr/share/doc/bluecat/LICENSE
 # ---------------------------------------------------------------------------
 COPY --from=builder /tmp/out/ /
 
-COPY container/common.sh /tmp/common.sh
-COPY container/image-setup.sh /tmp/image-setup.sh
+COPY image/setup/common.sh /tmp/common.sh
+COPY image/setup/image-setup.sh /tmp/image-setup.sh
 
 # ---------------------------------------------------------------------------
 # Runtime packages + configuration.

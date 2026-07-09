@@ -22,7 +22,8 @@ secrets/
 # --- Erzeugte Images / OSTree / OCI / ISO ------------------------------------
 *.iso
 *.img
-!iso/product.img
+!iso/product.img/
+!iso/product.img/**
 *.raw
 *.qcow2
 *.vmdk

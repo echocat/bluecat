@@ -35,7 +35,7 @@
 ### Image tags
 
 `mise build:image` always builds the fixed local tag `:local` and never pushes it.
-`mise push` re-tags that image and pushes:
+`mise publish:image` re-tags that image and pushes:
 
 | mode              | tags pushed                                             |
 |-------------------|---------------------------------------------------------|
@@ -47,8 +47,16 @@ a PR labeled `test image` → `pr <number>`.
 
 The tasks are self-contained file-tasks in `mise-tasks/` (they contain the
 full logic, no separate wrapper scripts). All versions/names are centralized in
-`build.env`. The scripts that run *inside* the container build live in
-`container/`.
+`build.env`. The scripts that run *inside* the image build live in
+`image/setup/`.
+
+### Rolling ISO
+
+The rolling offline installer ISO is published here:
+
+- ISO: <https://download.bluecat.echocat.org/latest/bluecat.iso>
+- SHA256: <https://download.bluecat.echocat.org/latest/bluecat.iso.sha256>
+- MD5: <https://download.bluecat.echocat.org/latest/bluecat.iso.md5>
 
 ---
 
