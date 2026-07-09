@@ -125,10 +125,12 @@ rpm-ostree install -y cabextract
 # overlay and vkBasalt post-processing too.
 # ---------------------------------------------------------------------------
 echo "==> Gaming stack"
-rpm-ostree install -y \
+dnf5 -y --setopt=install_weak_deps=False install \
   steam \
   steam-devices \
-  lutris \
+  lutris
+
+rpm-ostree install -y \
   mangohud.x86_64 \
   mangohud.i686 \
   gamescope \
