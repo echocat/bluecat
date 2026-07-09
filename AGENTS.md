@@ -52,8 +52,7 @@ Before marking shell/workflow changes done, run the relevant checks:
   them to rootful without re-evaluating overlay performance.
 - `build:iso` starts as the normal user but uses rootful podman internally for
   the `mkksiso` step because loop devices are required.
-- Do not enable `libvirt` or `incus` services by default. They are installed
-  only.
+- Do not enable `libvirt` services by default. They are installed only.
 - `toolbox` is removed and `distrobox` is installed.
 - The Nushell Gemfury repo uses `gpgcheck=0` because the RPMs are unsigned.
 - Keep changes surgical. Do not refactor adjacent code or documentation unless

@@ -143,7 +143,7 @@ retry curl -fsSL --retry 3 \
 chmod +x /usr/bin/winetricks
 
 # ---------------------------------------------------------------------------
-# Virtualization. Packages are only installed here; the libvirt/incus daemons
+# Virtualization. Packages are only installed here; the libvirt daemons
 # are intentionally NOT enabled and no user groups are configured.
 # ---------------------------------------------------------------------------
 echo "==> Virtualization (install only, services not enabled)"
@@ -152,8 +152,7 @@ rpm-ostree install -y \
   virt-install \
   virt-manager \
   virt-viewer \
-  libvirt \
-  incus
+  libvirt
 
 # ---------------------------------------------------------------------------
 # Containers: ship distrobox and remove the base-image `toolbox`.
