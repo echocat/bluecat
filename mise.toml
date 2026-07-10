@@ -74,7 +74,7 @@ MOK_SUBJECT="/CN=echocat Secure Boot Signing/"
 # ISO_BUILDER_IMAGE : Fedora container image that provides `mkksiso` (lorax);
 #                 mkksiso does not run on non-Fedora hosts, so it runs in here.
 ISO_IMAGE_TAG="{{ env.FEDORA_MAJOR_VERSION }}"
-ISO_BASE_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/{{ env.FEDORA_MAJOR_VERSION }}/Everything/x86_64/os/images/boot.iso}"
+ISO_BASE_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/{{ env.FEDORA_MAJOR_VERSION }}/Everything/x86_64/os/images/boot.iso"
 ISO_BUILDER_IMAGE="registry.fedoraproject.org/fedora:{{ env.FEDORA_MAJOR_VERSION }}"
 
 # Environment variables required for uploading release assets.
