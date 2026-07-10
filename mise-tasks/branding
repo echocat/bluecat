@@ -31,11 +31,11 @@ const ISO_ANACONDA_ROOTFS = "iso/product.img";
 // The Plymouth watermark must NOT be shipped straight into the rpm-managed
 // theme dir (/usr/share/plymouth/themes/spinner): a later `rpm-ostree install`
 // re-checks out that package directory and drops non-packaged files. We stage
-// it in our own (non-packaged) branding dir; image-setup.sh copies it into the
+// it in our own (non-packaged) branding dir; 800-rebranding copies it into the
 // spinner theme AFTER the last rpm-ostree transaction.
 const BRANDING = `${OUT}/usr/share/bluecat/branding`;
 
-// Icon name referenced by os-release LOGO (see image/setup/image-setup.sh).
+// Icon name referenced by os-release LOGO (see image/setup/stage2.d/800-rebranding).
 const ICON_NAME = "bluecat-logo-icon";
 // Icon sizes for the hicolor theme.
 const ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256];
@@ -108,7 +108,7 @@ await writeFile(`${PIXMAPS}/bluecat-logo.png`, renderPng(fullSvg, 838));
 // --- 3. Plymouth watermark (boot splash) ------------------------------------
 // Kinoite uses the "bgrt" theme, which shows the watermark.png from the
 // "spinner" theme dir. That dir is rpm-managed, so we stage the watermark in
-// our own branding dir and let image-setup.sh place it into spinner/ AFTER the
+// our own branding dir and let 800-rebranding place it into spinner/ AFTER the
 // last rpm-ostree transaction (otherwise it gets dropped). We use the colored
 // wordmark (#006fb3) at a modest width so it does not dominate the splash.
 console.log("==> Plymouth watermark (staged in branding dir)");

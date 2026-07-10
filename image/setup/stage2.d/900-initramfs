@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Rebuilding initramfs for bluecat boot splash"
+if ! command -v dracut >/dev/null 2>&1; then
+  echo "ERROR: dracut not found; cannot rebuild initramfs for bluecat branding." >&2
+  exit 1
+fi
+if [[ ! -x /usr/lib/ostree/ostree-prepare-root ]]; then
+  echo "ERROR: ostree-prepare-root not found; refusing to rebuild an initramfs without OSTree support." >&2
+  exit 1
+fi
+
+initramfs_count=0
+for kernel_module_dir in /usr/lib/modules/*/; do
+  kver="$(basename "${kernel_module_dir}")"
+  [[ -f "/usr/lib/modules/${kver}/vmlinuz" ]] || continue
+
+  initramfs_count=$((initramfs_count + 1))
+  echo "    dracut ${kver}"
+  dracut --force --no-hostonly --add ostree \
+    "/usr/lib/modules/${kver}/initramfs.img" "${kver}"
+done
+
+if (( initramfs_count == 0 )); then
+  echo "ERROR: no shipped kernel found under /usr/lib/modules; cannot rebuild initramfs." >&2
+  exit 1
+fi

@@ -99,7 +99,7 @@ fi
 
 # --- 7b. the build itself must not download the firmware --------------------
 if grep -Eqi 'windowsupdate|xow_dongle|FW_ACC_00U|\.cab' \
-     image/setup/build-modules.sh image/setup/image-setup.sh; then
+     image/setup/stage1 image/setup/stage1.d/* image/setup/stage2 image/setup/stage2.d/*; then
   bad "the container build references downloading/extracting the firmware"
 else
   pass "the container build does not fetch/extract the firmware"
@@ -138,33 +138,33 @@ else
 fi
 
 # --- 8. os-release rebranding -----------------------------------------------
-if grep -q 'ID="bluecat"' image/setup/image-setup.sh \
-   && grep -q 'ID_LIKE="fedora"' image/setup/image-setup.sh; then
+if grep -q 'ID="bluecat"' image/setup/stage2.d/800-rebranding \
+   && grep -q 'ID_LIKE="fedora"' image/setup/stage2.d/800-rebranding; then
   pass "os-release rebrands to bluecat with ID_LIKE=fedora"
 else
-  bad "os-release rebranding (bluecat + ID_LIKE=fedora) not found in image-setup.sh"
+  bad "os-release rebranding (bluecat + ID_LIKE=fedora) not found in 800-rebranding"
 fi
-if grep -q 'NAME="Fedora Linux"' image/setup/image-setup.sh; then
-  bad "image-setup.sh still sets NAME=\"Fedora Linux\""
+if grep -q 'NAME="Fedora Linux"' image/setup/stage2.d/800-rebranding; then
+  bad "800-rebranding still sets NAME=\"Fedora Linux\""
 else
   pass "os-release does not keep NAME=\"Fedora Linux\""
 fi
 
 # --- 9. fedora-logos replaced -----------------------------------------------
-if grep -q 'generic-logos' image/setup/image-setup.sh; then
+if grep -q 'generic-logos' image/setup/stage2.d/800-rebranding; then
   pass "fedora-logos is replaced by generic-logos"
 else
-  bad "fedora-logos replacement (generic-logos) not found in image-setup.sh"
+  bad "fedora-logos replacement (generic-logos) not found in 800-rebranding"
 fi
 # 9b. Must NOT use `rpm-ostree override remove` for that: it records a
 # persistent override that breaks later rpm-ostree transactions on the target
 # (e.g. `rpm-ostree initramfs --enable`). Use `dnf swap`/`dnf remove` instead.
-# Ignore comment lines (image-setup.sh explains in a comment why it avoids it).
-if grep -v '^[[:space:]]*#' image/setup/image-setup.sh \
+# Ignore comment lines (setup steps explain in comments why they avoid it).
+if grep -hv '^[[:space:]]*#' image/setup/stage1 image/setup/stage1.d/* image/setup/stage2 image/setup/stage2.d/* \
      | grep -Eq 'rpm-ostree[[:space:]]+override[[:space:]]+remove'; then
-  bad "image-setup.sh uses 'rpm-ostree override remove' (breaks later rpm-ostree ops; use dnf swap)"
+  bad "image setup uses 'rpm-ostree override remove' (breaks later rpm-ostree ops; use dnf swap)"
 else
-  pass "no persistent 'rpm-ostree override remove' in image-setup.sh"
+  pass "no persistent 'rpm-ostree override remove' in image setup"
 fi
 
 # --- 10. OCI labels do not use Fedora as vendor/title -----------------------

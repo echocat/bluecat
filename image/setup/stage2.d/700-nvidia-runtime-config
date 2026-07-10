@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Enabling NVIDIA modeset"
+cat > /usr/lib/modprobe.d/nvidia-bluecat.conf <<'EOF'
+options nvidia-drm modeset=1 fbdev=1
+EOF
+
+echo "==> depmod for the shipped kernel"
+for kver in /usr/lib/modules/*/; do
+  kver="$(basename "${kver}")"
+  if [[ -f "/usr/lib/modules/${kver}/vmlinuz" ]]; then
+    echo "    depmod ${kver}"
+    depmod -a "${kver}"
+  fi
+done
+
+echo "==> Auto-load configuration"
+cat > /usr/lib/modules-load.d/nvidia-bluecat.conf <<'EOF'
+nvidia
+nvidia_modeset
+nvidia_uvm
+nvidia_drm
+EOF
+
+cat > /usr/lib/modules-load.d/xone-bluecat.conf <<'EOF'
+xone-dongle
+xone-gip
+EOF

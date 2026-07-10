@@ -17,8 +17,10 @@
 ├── Containerfile            # 2-stage bootc build
 ├── certs/                   # public cert (mok.der/crt); mok.key = private!
 ├── image/setup/             # scripts that run INSIDE the image build
-│   ├── build-modules.sh     # stage 1: build + sign modules
-│   └── image-setup.sh       # stage 2: runtime + defaults + rebrand
+│   ├── stage1               # stage 1: runs numbered stage1.d scripts
+│   ├── stage1.d/            # stage 1 setup steps, ordered by filename
+│   ├── stage2               # stage 2: runs numbered stage2.d scripts
+│   └── stage2.d/            # stage 2 setup steps, ordered by filename
 ├── iso/                     # offline installer ISO Kickstart, rootfs and product.img branding
 ├── assets/branding/         # echocat branding sources + `mise branding`
 ├── docs/                    # legal / NVIDIA / Xbox-firmware documentation

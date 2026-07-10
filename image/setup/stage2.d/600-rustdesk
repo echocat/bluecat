@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> RustDesk ${RUSTDESK_VERSION} (direct RPM from GitHub)"
+rpm-ostree install -y \
+  "https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_VERSION}/rustdesk-${RUSTDESK_VERSION}-0.x86_64.rpm"
+
+echo "==> RustDesk: SELinux file context for hbbs/hbbr"
+semanage fcontext -a -t NetworkManager_dispatcher_exec_t '/usr/bin/hbbs'
+semanage fcontext -a -t NetworkManager_dispatcher_exec_t '/usr/bin/hbbr'
+restorecon -v '/usr/bin/hbbs'
+restorecon -v '/usr/bin/hbbr'

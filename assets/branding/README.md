@@ -47,7 +47,7 @@ and commit the result whenever a source SVG changes.
 
 - **Plymouth**: the watermark is **staged** in `usr/share/bluecat/branding/`
   (not shipped straight into the rpm-managed `spinner` theme dir, which
-  `rpm-ostree` would clean out). `image/setup/image-setup.sh` copies it to
+  `rpm-ostree` would clean out). `image/setup/stage2.d/800-rebranding` copies it to
   `/usr/share/plymouth/themes/spinner/watermark.png` **after** the last
   `rpm-ostree` transaction. The default `bgrt` theme reads the watermark from
   the spinner dir. The default theme is not force-switched (testable on real
@@ -71,7 +71,7 @@ and commit the result whenever a source SVG changes.
 - **SDDM**: the logo assets are provided under `usr/share/sddm/themes/bluecat/`.
   Wiring a specific SDDM theme/config to display them is left as a documented
   step, as it depends on the chosen SDDM theme.
-- **KDE application launcher**: `image/setup/image-setup.sh` maps the generated
+- **KDE application launcher**: `image/setup/stage2.d/800-rebranding` maps the generated
   `bluecat-logo-icon.svg` to Plasma's default `start-here` / `start-here-kde`
   icon names after package transactions have completed, including Breeze theme
   slots when present.

@@ -32,6 +32,11 @@ Use `mise` tasks as the public project interface:
 - `mise lint` runs the full static verification suite.
 - `mise tasks` lists available tasks.
 
+Run project tools through `mise`. Prefer the matching task when one exists; for
+ad-hoc tools use `mise x -- <command>`. Do not call tools like spellcheck,
+shellcheck, deno, yq, or similar directly because some are only available via
+the `mise` environment.
+
 Before marking shell/workflow changes done, run the relevant checks:
 
 - `bash -n` for Bash tasks.
@@ -54,7 +59,8 @@ Before marking shell/workflow changes done, run the relevant checks:
   the `mkksiso` step because loop devices are required.
 - Do not enable `libvirt` services by default. They are installed only.
 - `toolbox` is removed and `distrobox` is installed.
-- The Nushell Gemfury repo uses `gpgcheck=0` because the RPMs are unsigned.
+- Nushell is installed from the latest upstream GitHub release tarball. Do not
+  use the Gemfury RPMs; their package scriptlets have broken image builds.
 - Keep changes surgical. Do not refactor adjacent code or documentation unless
   it is directly required by the task.
 
@@ -110,7 +116,10 @@ branch cancels an older running one.
 ## Key Files
 
 - `Containerfile` - image build stages and build arguments.
-- `image/setup/image-setup.sh` - package installation, OS rebranding,
+- `image/setup/stage1` - stage 1 setup runner.
+- `image/setup/stage1.d/` - module build and signing steps.
+- `image/setup/stage2` - stage 2 setup runner.
+- `image/setup/stage2.d/` - package installation, OS rebranding,
   and most image customization.
 - `iso/bluecat.ks.in` - offline bootc Kickstart template.
 - `iso/rootfs/` - files added to the ISO root.

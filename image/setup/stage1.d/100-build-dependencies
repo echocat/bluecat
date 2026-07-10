@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=image/setup/common
+source "$(dirname -- "${BASH_SOURCE[0]}")/../common"
+
+kver="$(bluecat_kernel_version)"
+echo "==> Determining kernel version"
+echo "    Kernel: ${kver}"
+
+echo "==> Enabling RPM Fusion (free + nonfree)"
+retry dnf install -y \
+  "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_MAJOR_VERSION}.noarch.rpm" \
+  "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_MAJOR_VERSION}.noarch.rpm"
+
+echo "==> Installing build dependencies"
+# kernel-devel must match the kernel version in the base image exactly.
+dnf install -y \
+  gcc gcc-c++ make git \
+  kernel-headers \
+  akmods \
+  openssl mokutil \
+  elfutils-libelf-devel \
+  cabextract
+
+if ! dnf install -y "kernel-devel-${kver}"; then
+  echo "ERROR: kernel-devel-${kver} is not available." >&2
+  echo "       The kernel in the base image does not match the repo state." >&2
+  echo "       Fix: pin the base image tag or fetch kernel-devel from koji." >&2
+  echo "       See README (TODO / roadmap)." >&2
+  exit 1
+fi
+
+mkdir -p "/tmp/out/tmp/bluecat-signed/usr/lib/modules/${kver}/extra"

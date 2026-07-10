@@ -10,4 +10,4 @@ while IFS= read -r f; do
       bash -n "${f}" && echo "OK  ${f}"
       ;;
   esac
-done < <(find image/setup -name '*.sh' -type f; find mise-tasks image/rootfs -type f)
+done < <(find image/setup mise-tasks image/rootfs -type f)

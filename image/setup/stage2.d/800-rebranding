@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Rebranding: replacing fedora-logos with generic-logos"
+# Use dnf swap, not rpm-ostree override remove. The latter records a persistent
+# override in the deployment and breaks later rpm-ostree transactions once
+# fedora-logos is already gone.
+if rpm -q fedora-logos >/dev/null 2>&1; then
+  dnf -y swap fedora-logos generic-logos
+else
+  echo "    fedora-logos not installed; ensuring generic-logos is present"
+  dnf -y install generic-logos
+fi
+
+echo "==> Default browser: removing Firefox RPM (Brave Flatpak installed on first boot)"
+if rpm -q firefox >/dev/null 2>&1; then
+  # Use dnf remove, not rpm-ostree override remove, to avoid persistent
+  # overrides that would break later transactions.
+  dnf -y remove firefox firefox-langpacks
+else
+  echo "    firefox not installed; nothing to remove"
+fi
+
+echo "==> Enabling bluecat first-boot services"
+systemctl preset \
+  bluecat-add-flathub.service \
+  bluecat-install-brave.service \
+  bluecat-enroll-mok.service
+
+echo "==> Rebranding: rewriting os-release"
+FEDORA_VERSION_ID="$(. /usr/lib/os-release 2>/dev/null; echo "${VERSION_ID:-${FEDORA_MAJOR_VERSION}}")"
+REPO_URL="https://github.com/echocat/bluecat"
+cat > /usr/lib/os-release <<EOF
+NAME="bluecat"
+PRETTY_NAME="bluecat ${FEDORA_VERSION_ID}"
+ID="bluecat"
+ID_LIKE="fedora"
+VERSION="${FEDORA_VERSION_ID}"
+VERSION_ID="${FEDORA_VERSION_ID}"
+VARIANT="Atomic Desktop"
+VARIANT_ID="atomic-desktop"
+ANSI_COLOR="0;38;2;0;111;179"
+LOGO="bluecat-logo-icon"
+BOOTLOADER_NAME="bluecat ${FEDORA_VERSION_ID}"
+HOME_URL="${REPO_URL}"
+SUPPORT_URL="${REPO_URL}/issues"
+BUG_REPORT_URL="${REPO_URL}/issues"
+DOCUMENTATION_URL="${REPO_URL}"
+EOF
+ln -sf ../usr/lib/os-release /etc/os-release
+echo "bluecat release ${FEDORA_VERSION_ID}" > /etc/system-release
+
+echo "==> Rebranding: applying echocat branding assets"
+if [[ -e /usr/share/pixmaps/bluecat-logo-icon.svg ]]; then
+  echo "    logo icon present: /usr/share/pixmaps/bluecat-logo-icon.svg"
+else
+  echo "    NOTE: no bluecat logo icon found; run 'mise branding' and commit" \
+       "the generated image/rootfs/ assets. generic-logos remains the base."
+fi
+
+if [[ -e /usr/share/pixmaps/bluecat-logo-icon.svg ]]; then
+  kde_launcher_icon_names=(
+    start-here
+    start-here-kde
+    start-here-kde-symbolic
+  )
+
+  mkdir -p /usr/share/icons/hicolor/scalable/places
+  for icon_name in "${kde_launcher_icon_names[@]}"; do
+    cp -f /usr/share/pixmaps/bluecat-logo-icon.svg \
+      "/usr/share/icons/hicolor/scalable/places/${icon_name}.svg"
+  done
+
+  for icon_theme in /usr/share/icons/breeze /usr/share/icons/breeze-dark; do
+    [[ -d "${icon_theme}" ]] || continue
+
+    for icon_dir in "${icon_theme}"/places/*; do
+      [[ -d "${icon_dir}" ]] || continue
+
+      for icon_name in "${kde_launcher_icon_names[@]}"; do
+        cp -f /usr/share/pixmaps/bluecat-logo-icon.svg \
+          "${icon_dir}/${icon_name}.svg"
+      done
+    done
+  done
+fi
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+
+plymouth_source="/usr/share/bluecat/branding/plymouth-watermark.png"
+plymouth_target="/usr/share/plymouth/themes/spinner/watermark.png"
+if [[ -e "${plymouth_source}" && -d /usr/share/plymouth/themes/spinner ]]; then
+  cp -f "${plymouth_source}" "${plymouth_target}"
+  echo "    Plymouth watermark installed: ${plymouth_target}"
+else
+  echo "    NOTE: no staged Plymouth watermark (${plymouth_source}); run 'mise branding'" \
+       "and commit the generated image/rootfs/ assets."
+fi

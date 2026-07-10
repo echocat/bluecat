@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Containers: distrobox in, toolbox out"
+rpm-ostree install -y distrobox
+if rpm -q toolbox >/dev/null 2>&1; then
+  # Use dnf remove, not rpm-ostree override remove, to avoid persistent
+  # overrides that break later rpm-ostree transactions on the target system.
+  dnf -y remove toolbox
+else
+  echo "    toolbox not installed; nothing to remove"
+fi

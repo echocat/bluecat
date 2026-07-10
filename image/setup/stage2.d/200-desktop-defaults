@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Desktop defaults / common tools"
+# policycoreutils-python-utils provides `semanage`, needed later to label the
+# RustDesk hbbs/hbbr binaries.
+# TODO Check if we can add mesa-va-drivers-freeworld  later, again
+rpm-ostree install -y \
+  gstreamer1-plugins-good \
+  gstreamer1-plugins-bad-free \
+  gstreamer1-plugin-openh264 \
+  usbutils \
+  pciutils \
+  mokutil \
+  newt \
+  kbd \
+  fuse \
+  fuse-libs \
+  htop \
+  mc \
+  dislocker \
+  rclone \
+  make \
+  git \
+  python3-tkinter \
+  yubikey-manager \
+  fido2-tools \
+  pam-u2f \
+  policycoreutils-python-utils

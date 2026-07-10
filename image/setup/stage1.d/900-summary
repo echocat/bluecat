@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Done. Signed modules under /tmp/out"
+find /tmp/out -name '*.ko*' -printf '    %p\n'

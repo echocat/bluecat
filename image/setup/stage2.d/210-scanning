@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Scanning + network service discovery"
+rpm-ostree install -y \
+  sane-backends \
+  sane-backends-drivers-scanners \
+  sane-airscan \
+  ipp-usb \
+  avahi \
+  nss-mdns

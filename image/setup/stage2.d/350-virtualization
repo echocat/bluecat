@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Virtualization (install only, services not enabled)"
+rpm-ostree install -y \
+  qemu-kvm \
+  virt-install \
+  virt-manager \
+  virt-viewer \
+  libvirt

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Installing pre-built kmod-nvidia from stage 1"
+# Installing the stage 1 kmod package satisfies `nvidia-kmod`, so rpm-ostree
+# does not pull akmod-nvidia and run its root-only build scriptlets here.
+rpm-ostree install -y /tmp/bluecat-rpms/kmod-nvidia-*.rpm
+
+echo "==> NVIDIA userspace packages"
+rpm-ostree install -y \
+  xorg-x11-drv-nvidia \
+  xorg-x11-drv-nvidia-cuda \
+  libva-nvidia-driver \
+  libva-utils \
+  vulkan-loader \
+  nvidia-modprobe \
+  nvidia-settings
+
+echo "==> Re-applying signed NVIDIA modules"
+if [[ -d /tmp/bluecat-signed ]]; then
+  for signed_nvidia_dir in /tmp/bluecat-signed/usr/lib/modules/*/extra/nvidia; do
+    [[ -d "${signed_nvidia_dir}" ]] || continue
+    modules_dir="${signed_nvidia_dir%/extra/nvidia}"
+    kver="$(basename "${modules_dir}")"
+    rm -rf "/usr/lib/modules/${kver}/extra/nvidia"
+  done
+  cp -a /tmp/bluecat-signed/. /
+  rm -rf /tmp/bluecat-signed
+fi
+rm -rf /tmp/bluecat-rpms

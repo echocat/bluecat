@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=image/setup/common
+source "$(dirname -- "${BASH_SOURCE[0]}")/../common"
+
+kver="$(bluecat_kernel_version)"
+out="/tmp/out"
+signed="${out}/tmp/bluecat-signed"
+
+echo "==> Building NVIDIA akmod"
+# The akmod package's %post tries to build immediately and can fail as root;
+# that is non-critical because akmodsbuild below performs the controlled build.
+dnf install -y akmod-nvidia xorg-x11-drv-nvidia-cuda || true
+
+nvidia_srpm="$(find /usr/src/akmods -name 'nvidia-kmod-*.src.rpm' | sort -V | tail -n1)"
+if [[ -z "${nvidia_srpm}" ]]; then
+  echo "ERROR: nvidia-kmod src.rpm not found under /usr/src/akmods." >&2
+  exit 1
+fi
+echo "    source: ${nvidia_srpm}"
+
+akmod_out="/tmp/akmod-nvidia"
+mkdir -p "${akmod_out}"
+# akmodsbuild refuses to run as root. The akmods wrapper solves this by using
+# the unprivileged akmods user via runuser; do the same here.
+chown -R akmods:akmods "${akmod_out}"
+runuser -s /bin/bash -c \
+  "akmodsbuild --kernels '${kver}' --outputdir '${akmod_out}' '${nvidia_srpm}'" \
+  akmods
+
+echo "==> Installing built kmod-nvidia RPM"
+dnf install -y "${akmod_out}"/kmod-nvidia-*.rpm
+
+mkdir -p "${out}/tmp/bluecat-rpms"
+cp "${akmod_out}"/kmod-nvidia-*.rpm "${out}/tmp/bluecat-rpms/"
+
+echo "==> Collecting + signing NVIDIA modules"
+nvidia_module="$(find "/usr/lib/modules/${kver}" -name 'nvidia.ko*' | head -n1)"
+if [[ -z "${nvidia_module}" ]]; then
+  echo "ERROR: NVIDIA modules not found." >&2
+  exit 1
+fi
+nvidia_src="$(dirname "${nvidia_module}")"
+
+find "${nvidia_src}" \( -name '*.ko' -o -name '*.ko.xz' \) | while read -r ko; do
+  bluecat_sign_module "${kver}" "${ko}"
+done
+cp -a "${nvidia_src}" "${signed}/usr/lib/modules/${kver}/extra/nvidia"

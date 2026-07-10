@@ -9,9 +9,9 @@ The NVIDIA driver is obtained from **RPM Fusion (nonfree)**
 (<https://rpmfusion.org/>), not from Fedora and not from NVIDIA directly:
 
 - **Kernel module** — built from the `akmod-nvidia` source package during the
-  container build (stage 1, `image/setup/build-modules.sh`) and signed
+  container build (stage 1, `image/setup/stage1.d/200-nvidia-akmod`) and signed
   with the local MOK for Secure Boot.
-- **Userspace** — installed in stage 2 (`image/setup/image-setup.sh`):
+- **Userspace** — installed in stage 2 (`image/setup/stage2.d/110-nvidia-packages`):
   - `xorg-x11-drv-nvidia`
   - `xorg-x11-drv-nvidia-cuda`
   - `libva-nvidia-driver`

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# =============================================================================
+# image/setup/stage1  (runs in stage 1 / builder)
+# =============================================================================
+# Runs the numbered builder steps under stage1.d as standalone scripts. They are
+# executed, not sourced, so each step can choose its own shebang/interpreter.
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=image/setup/common
+source "$(dirname -- "${BASH_SOURCE[0]}")/common"
+
+bluecat_run_steps "$(dirname -- "${BASH_SOURCE[0]}")/stage1.d" "stage1 setup done"

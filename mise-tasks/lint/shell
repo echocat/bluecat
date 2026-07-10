@@ -13,6 +13,6 @@ while IFS= read -r f; do
   case "${first}" in
     *bash*|*"/sh"*|*"env sh"*) files+=("${f}") ;;
   esac
-done < <(find image/setup -name '*.sh' -type f; find mise-tasks image/rootfs -type f)
+done < <(find image/setup mise-tasks image/rootfs -type f)
 
 shellcheck --external-sources --severity=warning "${files[@]}"

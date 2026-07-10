@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=image/setup/common
+source "$(dirname -- "${BASH_SOURCE[0]}")/../common"
+
+: "${XONE_REPO:=https://github.com/medusalix/xone.git}"
+: "${XONE_REF:=master}"
+
+kver="$(bluecat_kernel_version)"
+signed="/tmp/out/tmp/bluecat-signed"
+
+echo "==> Cloning xone (${XONE_REPO} @ ${XONE_REF})"
+git clone "${XONE_REPO}" /tmp/xone
+git -C /tmp/xone checkout "${XONE_REF}"
+
+echo "==> xone firmware is NOT included (proprietary)."
+echo "    The driver is built; the controller firmware must be fetched at"
+echo "    runtime by the user via 'sudo enable-xone-firmware' (see README)."
+
+echo "==> Building xone"
+# xone ships an install.sh using DKMS; build directly against KVER here and
+# bypass DKMS for the Atomic image.
+make -C "/usr/src/kernels/${kver}" M=/tmp/xone modules
+
+echo "==> Collecting + signing xone modules"
+mkdir -p "${signed}/usr/lib/modules/${kver}/extra/xone"
+find /tmp/xone -name '*.ko' | while read -r ko; do
+  bluecat_sign_module "${kver}" "${ko}"
+  cp -a "${ko}" "${signed}/usr/lib/modules/${kver}/extra/xone/"
+done

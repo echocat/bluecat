@@ -31,8 +31,9 @@ ARG XONE_REF
 COPY certs/mok.der /tmp/certs/mok.der
 COPY certs/mok.crt /tmp/certs/mok.crt
 
-COPY image/setup/common.sh /tmp/common.sh
-COPY image/setup/build-modules.sh /tmp/build-modules.sh
+COPY image/setup/common    /tmp/image-setup/common
+COPY image/setup/stage1    /tmp/image-setup/stage1
+COPY image/setup/stage1.d/ /tmp/image-setup/stage1.d/
 
 # Enable RPM Fusion (free + nonfree) for the NVIDIA akmod, install the build
 # tooling, build + sign the modules. The result lives under
@@ -42,7 +43,7 @@ RUN --mount=type=secret,id=mok_key,target=/tmp/certs/mok.key \
     FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
     XONE_REPO="${XONE_REPO}" \
     XONE_REF="${XONE_REF}" \
-    /tmp/build-modules.sh
+    /tmp/image-setup/stage1
 
 # =============================================================================
 # Stage 2: final bootc image
@@ -95,17 +96,17 @@ COPY LICENSE /usr/share/doc/bluecat/LICENSE
 # ---------------------------------------------------------------------------
 COPY --from=builder /tmp/out/ /
 
-COPY image/setup/common.sh /tmp/common.sh
-COPY image/setup/image-setup.sh /tmp/image-setup.sh
+COPY image/setup/common    /tmp/image-setup/common
+COPY image/setup/stage2    /tmp/image-setup/stage2
+COPY image/setup/stage2.d/ /tmp/image-setup/stage2.d/
 
 # ---------------------------------------------------------------------------
 # Runtime packages + configuration.
 # ---------------------------------------------------------------------------
 RUN FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
     RUSTDESK_VERSION="${RUSTDESK_VERSION}" \
-    /tmp/image-setup.sh && \
-    rm -f /tmp/common.sh && \
-    rm -f /tmp/image-setup.sh && \
+    /tmp/image-setup/stage2 && \
+    rm -rf /tmp/image-setup && \
     ostree container commit
 
 # bootc lint (validates, among other things, that the image is bootable/rebasable).

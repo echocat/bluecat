@@ -57,7 +57,7 @@ This image combines unmodified Fedora software with non-Fedora software
 - The Fedora branding packages (`fedora-logos`, `fedora-release`,
   `fedora-release-notes`) are removed/replaced so the image does not carry
   Fedora trademarks. `os-release` is rewritten to identify the system as
-  `bluecat` (see `image/setup/image-setup.sh`).
+  `bluecat` (see `image/setup/stage2.d/800-rebranding`).
 - The software provided here is **not** provided or supported by the Fedora
   Project.
 - Official, unmodified Fedora software is available from the Fedora Project at
