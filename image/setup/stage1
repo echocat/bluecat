@@ -10,4 +10,4 @@ set -euo pipefail
 # shellcheck source=image/setup/common
 source "$(dirname -- "${BASH_SOURCE[0]}")/common"
 
-bluecat_run_steps "$(dirname -- "${BASH_SOURCE[0]}")/stage1.d" "stage1 setup done"
+bluecat_run_steps "stage1" "$(dirname -- "${BASH_SOURCE[0]}")/stage1.d"

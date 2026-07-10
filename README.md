@@ -19,6 +19,7 @@
   proprietary Microsoft Xbox Wireless Adapter firmware is **not** included and
   is only fetched locally, after an explicit user action
   (see [`docs/xbox-firmware.md`](docs/xbox-firmware.md)).
+- [**Nix** package manager](https://nixos.org/) in multi-user daemon mode.
 - **Secure Boot**: all out-of-tree modules are signed with a **local MOK**;
   the public cert is enrolled into the firmware once
 - sensible desktop defaults (codecs, VA-API, etc.)

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Nix package manager (multi-user daemon)"
+rpm-ostree install -y nix nix-daemon

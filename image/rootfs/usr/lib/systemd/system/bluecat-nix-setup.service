@@ -1,0 +1,15 @@
+[Unit]
+Description=Create writable Nix directory layout
+Wants=systemd-sysusers.service
+Requires=nix.mount
+After=nix.mount systemd-sysusers.service
+Before=nix-daemon.service nix-daemon.socket
+ConditionPathIsMountPoint=/nix
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-tmpfiles --create /usr/lib/tmpfiles.d/bluecat-nix.conf
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

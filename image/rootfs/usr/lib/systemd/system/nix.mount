@@ -1,0 +1,15 @@
+[Unit]
+Description=Writable Nix store bind mount
+DefaultDependencies=no
+Requires=bluecat-nix-prepare.service
+After=bluecat-nix-prepare.service
+Before=bluecat-nix-setup.service nix-daemon.service nix-daemon.socket
+
+[Mount]
+What=/var/nix
+Where=/nix
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target

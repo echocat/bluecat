@@ -24,35 +24,57 @@ bluecat_color_enabled() {
   [[ -z "${NO_COLOR:-}" && "${BLUECAT_COLOR:-1}" != "0" ]]
 }
 
-bluecat_step_start() {
-  local step_name="$1"
+bluecat_color_for_text() {
+  local text="$1"
+  local checksum
+  local -a colors=(31 32 33 34 35 36 91 92 93 94 95 96)
+
+  checksum="$(printf '%s' "${text}" | cksum)"
+  checksum="${checksum%% *}"
+  printf '%s\n' "${colors[checksum % ${#colors[@]}]}"
+}
+
+bluecat_print_colored() {
+  local text="$1"
+  local color
+
+  color="$(bluecat_color_for_text "${text}")"
+  printf '\033[1;%sm%s\033[0m' "${color}" "${text}"
+}
+
+bluecat_print_headline() {
+  local text="$1"
+  local suffix="${2:-}"
+  local color
 
   if bluecat_color_enabled; then
-    printf '\033[1;36m==>\033[0m \033[36mRunning setup step:\033[0m \033[1m%s\033[0m\n' "${step_name}"
+    color="$(bluecat_color_for_text "${text}")"
+    printf '\033[1;%sm%s\033[0m%s\n' "${color}" "${text}" "${suffix}"
   else
-    printf '==> Running setup step: %s\n' "${step_name}"
+    printf '%s%s\n' "${text}" "${suffix}"
   fi
 }
 
-bluecat_step_done() {
-  local step_name="$1"
+format_duration() {
+  local seconds="$1"
 
-  if bluecat_color_enabled; then
-    printf '\033[1;32m==>\033[0m \033[32mSetup step done:\033[0m \033[1m%s\033[0m\n\n' "${step_name}"
-  else
-    printf '==> Setup step done: %s\n\n' "${step_name}"
-  fi
+  printf '%02d:%02d:%02d' \
+    $((seconds / 3600)) \
+    $(((seconds % 3600) / 60)) \
+    $((seconds % 60))
 }
 
 bluecat_run_steps() {
-  local steps_dir="$1"
-  local done_message="$2"
+  local stage="$1"
+  local steps_dir="$2"
   local step
   local step_name
   local -a steps
+  local start
+  local start_step
 
   if [[ ! -d "${steps_dir}" ]]; then
-    echo "ERROR: setup steps directory not found: ${steps_dir}" >&2
+    echo "ERROR: steps directory not found: ${steps_dir}" >&2
     return 1
   fi
 
@@ -61,24 +83,28 @@ bluecat_run_steps() {
   shopt -u nullglob
 
   if (( ${#steps[@]} == 0 )); then
-    echo "ERROR: no setup steps found in ${steps_dir}" >&2
+    echo "ERROR: no steps found in ${steps_dir}" >&2
     return 1
   fi
+
+  start="$(date +%s)"
+  bluecat_print_headline "[build:image:${stage}]"
 
   for step in "${steps[@]}"; do
     [[ -f "${step}" ]] || continue
     if [[ ! -x "${step}" ]]; then
-      echo "ERROR: setup step is not executable: ${step}" >&2
+      echo "ERROR: step is not executable: ${step}" >&2
       return 1
     fi
 
     step_name="$(basename "${step}")"
-    bluecat_step_start "${step_name}"
+    start_step="$(date +%s)"
+    bluecat_print_headline "[build:image:${stage}:${step_name}]"
     "${step}"
-    bluecat_step_done "${step_name}"
+    echo "[build:image:${stage}:${step_name}] DONE! (took $(format_duration $(( $(date +%s) - start_step ))))"
   done
 
-  printf '==> %s\n\n' "${done_message}"
+  echo "[build:image:${stage}] DONE! (took $(format_duration $(( $(date +%s) - start ))))"
 }
 
 bluecat_kernel_version() {

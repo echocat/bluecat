@@ -1,0 +1,9 @@
+[Unit]
+Description=Prepare writable Nix backing directory
+RequiresMountsFor=/var
+Before=nix.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/install -d -m 0755 /var/nix
+RemainAfterExit=yes
