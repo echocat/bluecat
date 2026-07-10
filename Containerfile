@@ -23,7 +23,6 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}:${FEDORA_MAJOR_VERSION} AS builder
 
 ARG FEDORA_MAJOR_VERSION
-ARG XONE_REPO="https://github.com/medusalix/xone.git"
 ARG XONE_REF
 
 # The signing key is passed as a BuildKit secret (id=mok_key), NOT as an ARG,
@@ -41,7 +40,6 @@ COPY image/setup/stage1.d/ /tmp/image-setup/stage1.d/
 # ARGs are passed explicitly as ENV into the script.
 RUN --mount=type=secret,id=mok_key,target=/tmp/certs/mok.key \
     FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
-    XONE_REPO="${XONE_REPO}" \
     XONE_REF="${XONE_REF}" \
     /tmp/image-setup/stage1
 
@@ -53,6 +51,7 @@ FROM ${BASE_IMAGE}:${FEDORA_MAJOR_VERSION} AS final
 ARG FEDORA_MAJOR_VERSION
 ARG BASE_IMAGE
 ARG RUSTDESK_VERSION
+ARG NUSHELL_VERSION
 ARG IMAGE_CREATED
 ARG IMAGE_REVISION
 ARG IMAGE_VERSION
@@ -105,6 +104,7 @@ COPY image/setup/stage2.d/ /tmp/image-setup/stage2.d/
 # ---------------------------------------------------------------------------
 RUN FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
     RUSTDESK_VERSION="${RUSTDESK_VERSION}" \
+    NUSHELL_VERSION="${NUSHELL_VERSION}" \
     /tmp/image-setup/stage2 && \
     rm -rf /tmp/image-setup && \
     ostree container commit

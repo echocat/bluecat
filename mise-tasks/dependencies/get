@@ -1,0 +1,36 @@
+#!/usr/bin/env -S deno run --allow-read
+//MISE description="Reads one dependency version from /dependencies.yaml"
+//MISE dir="{{config_root}}"
+
+import { parse } from "jsr:@std/yaml@1.0.10";
+
+const [fedoraMajorVersion, toolName] = Deno.args;
+
+if (!fedoraMajorVersion || !toolName || Deno.args.length !== 2) {
+  console.error("Usage: mise dependencies:get <fedora_major_version> <toolname>");
+  Deno.exit(1);
+}
+
+const dependencies = await readYaml("dependencies.yaml") as Record<
+  string,
+  Record<string, unknown>
+>;
+const version = dependencies[fedoraMajorVersion]?.[toolName];
+
+if (version === undefined || version === null) {
+  console.error(
+    `ERROR: no dependency '${toolName}' for Fedora ${fedoraMajorVersion}.`,
+  );
+  Deno.exit(1);
+}
+
+console.log(String(version));
+
+async function readYaml(path: string): Promise<unknown> {
+  try {
+    return parse(await Deno.readTextFile(path));
+  } catch (error) {
+    console.error(`ERROR: failed to read ${path}: ${(error as Error).message}`);
+    Deno.exit(1);
+  }
+}

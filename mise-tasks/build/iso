@@ -16,7 +16,6 @@
 set -euo pipefail
 
 # shellcheck source=/dev/null
-source ./build.env
 
 if ! command -v podman >/dev/null 2>&1; then
   echo "ERROR: podman not found." >&2

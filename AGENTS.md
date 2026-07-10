@@ -59,8 +59,9 @@ Before marking shell/workflow changes done, run the relevant checks:
   the `mkksiso` step because loop devices are required.
 - Do not enable `libvirt` services by default. They are installed only.
 - `toolbox` is removed and `distrobox` is installed.
-- Nushell is installed from the latest upstream GitHub release tarball. Do not
-  use the Gemfury RPMs; their package scriptlets have broken image builds.
+- Nushell is installed from the upstream GitHub release tarball pinned by
+  [`dependencies.yaml`](dependencies.yaml). Do not use the Gemfury RPMs; their package
+  scriptlets have broken image builds.
 - Keep changes surgical. Do not refactor adjacent code or documentation unless
   it is directly required by the task.
 
@@ -78,7 +79,6 @@ The artifact workflow runs:
 
 For release builds it pushes:
 
-- `latest`
 - the Fedora major tag, for example `44`
 - a timestamp tag in the existing format `44.<YYYYMMDDTHHMM>`
 
@@ -116,6 +116,7 @@ branch cancels an older running one.
 ## Key Files
 
 - `Containerfile` - image build stages and build arguments.
+- `dependencies.yaml` - central definition of pinned versions of dependencies.
 - `image/setup/stage1` - stage 1 setup runner.
 - `image/setup/stage1.d/` - module build and signing steps.
 - `image/setup/stage2` - stage 2 setup runner.
@@ -124,8 +125,6 @@ branch cancels an older running one.
 - `iso/bluecat.ks.in` - offline bootc Kickstart template.
 - `iso/rootfs/` - files added to the ISO root.
 - `iso/product.img/` - Anaconda product image branding files.
-- `build.env` - central build variables. Treat it carefully; it may be protected
-  by local read rules.
 - `mise-tasks/build/image` - rootless local image build.
 - `mise-tasks/build/iso` - offline Anaconda installer ISO build.
 - `mise-tasks/publish/image` - release and PR tag/push logic plus release timestamp tag

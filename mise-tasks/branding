@@ -1,7 +1,6 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
 //MISE description="Render the echocat branding assets from SVG into image/rootfs/ and iso/"
 //MISE dir="{{config_root}}"
-//MISE tools={deno="latest"}
 // ===========================================================================
 // Renders the bluecat / echocat branding from the source SVGs in
 // assets/branding/ into the paths the image and ISO expect. The generated files

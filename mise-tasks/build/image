@@ -18,7 +18,6 @@
 set -euo pipefail
 
 # shellcheck source=/dev/null
-source ./build.env
 
 # --- Require podman ----------------------------------------------------------
 if ! command -v podman >/dev/null 2>&1; then
@@ -49,6 +48,11 @@ GLOBAL_ARGS+=(--cgroup-manager="${cgroup_manager}")
 
 # Note: the signing material is validated by the verify-keys task,
 # which runs as a dependency of this task (see #MISE depends above).
+
+# --- pinned dependency versions ---------------------------------------------
+XONE_REF="$(mise -q dependencies:get "${FEDORA_MAJOR_VERSION}" xone)"
+RUSTDESK_VERSION="$(mise -q dependencies:get "${FEDORA_MAJOR_VERSION}" rustdesk)"
+NUSHELL_VERSION="$(mise -q dependencies:get "${FEDORA_MAJOR_VERSION}" nushell)"
 
 # --- always build against the up-to-date upstream ---------------------------
 # Two things keep every build current:
@@ -92,9 +96,9 @@ podman "${GLOBAL_ARGS[@]}" build \
   --secret "id=mok_key,src=${MOK_KEY}" \
   --build-arg "FEDORA_MAJOR_VERSION=${FEDORA_MAJOR_VERSION}" \
   --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
-  --build-arg "XONE_REPO=${XONE_REPO}" \
   --build-arg "XONE_REF=${XONE_REF}" \
   --build-arg "RUSTDESK_VERSION=${RUSTDESK_VERSION}" \
+  --build-arg "NUSHELL_VERSION=${NUSHELL_VERSION}" \
   --build-arg "IMAGE_CREATED=${IMAGE_CREATED}" \
   --build-arg "IMAGE_REVISION=${IMAGE_REVISION}" \
   --build-arg "IMAGE_VERSION=${IMAGE_VERSION}" \
@@ -106,4 +110,4 @@ echo
 echo "==> Done: ${LOCAL_REF}"
 echo "    Inspect locally: podman images | grep bluecat"
 echo "    ISO:             mise build:iso"
-echo "    Publish:         mise publish:image release    (or: mise publish:image pr <number>)"
+echo "    Publish:         mise publish:image release    (or: mise publish:image pr <number>, test <name>)"

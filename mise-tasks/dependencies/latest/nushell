@@ -1,0 +1,22 @@
+#!/usr/bin/env -S deno run --allow-net
+//MISE description="Detects the current available release version of https://github.com/nushell/nushell"
+//MISE hide=true
+//MISE dir="{{config_root}}"
+
+const response = await fetch(
+  "https://api.github.com/repos/nushell/nushell/releases/latest",
+  { headers: { "accept": "application/vnd.github+json" } },
+);
+
+if (!response.ok) {
+  console.error(`ERROR: GitHub returned ${response.status} for nushell.`);
+  Deno.exit(1);
+}
+
+const release = await response.json() as { tag_name?: unknown };
+if (typeof release.tag_name !== "string" || release.tag_name.length === 0) {
+  console.error("ERROR: GitHub response for nushell has no tag_name.");
+  Deno.exit(1);
+}
+
+console.log(release.tag_name.replace(/^v/, ""));

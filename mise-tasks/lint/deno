@@ -1,8 +1,25 @@
 #!/usr/bin/env bash
 #MISE description="Type-check and lint the Deno-based file-tasks"
 #MISE dir="{{config_root}}"
-#MISE tools={deno="latest"}
 set -euo pipefail
 # The Deno tasks have no .ts extension, so tell deno lint the language.
-deno check mise-tasks/keys mise-tasks/verify-keys mise-tasks/branding
-deno lint --ext=ts mise-tasks/keys mise-tasks/verify-keys mise-tasks/branding
+deno check \
+  mise-tasks/keys \
+  mise-tasks/verify-keys \
+  mise-tasks/branding \
+  mise-tasks/dependencies/get \
+  mise-tasks/dependencies/update \
+  mise-tasks/dependencies/latest/_default \
+  mise-tasks/dependencies/latest/nushell \
+  mise-tasks/dependencies/latest/rustdesk \
+  mise-tasks/dependencies/latest/xone
+deno lint --ext=ts \
+  mise-tasks/keys \
+  mise-tasks/verify-keys \
+  mise-tasks/branding \
+  mise-tasks/dependencies/get \
+  mise-tasks/dependencies/update \
+  mise-tasks/dependencies/latest/_default \
+  mise-tasks/dependencies/latest/nushell \
+  mise-tasks/dependencies/latest/rustdesk \
+  mise-tasks/dependencies/latest/xone

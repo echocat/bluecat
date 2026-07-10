@@ -40,7 +40,7 @@
 
 | mode              | tags pushed                                             |
 |-------------------|---------------------------------------------------------|
-| `release`         | `<major>.<YYYYMMDD>T<HHmm>` (UTC), `<major>`, `latest`  |
+| `release`         | `<major>.<YYYYMMDD>T<HHmm>` (UTC), `<major>`            |
 | `pr <number>`     | `pr-<number>` (only)                                    |
 
 In CI this is decided automatically (see below): push to `main` → `release`,
@@ -48,7 +48,7 @@ a PR labeled `test image` → `pr <number>`.
 
 The tasks are self-contained file-tasks in `mise-tasks/` (they contain the
 full logic, no separate wrapper scripts). All versions/names are centralized in
-`build.env`. The scripts that run *inside* the image build live in
+`dependencies.yaml`. The scripts that run *inside* the image build live in
 `image/setup/`.
 
 ### Rolling ISO

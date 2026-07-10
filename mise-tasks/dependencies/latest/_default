@@ -1,0 +1,66 @@
+#!/usr/bin/env -S deno run --allow-read --allow-run=mise
+//MISE description="Retrieves the latest versions of all dependencies."
+//MISE dir="{{config_root}}"
+
+const mode = parseMode(Deno.args);
+const tools = await executableSiblingTasks();
+const versions: Record<string, string> = {};
+
+for (const tool of tools) {
+  versions[tool] = await latestVersion(tool);
+}
+
+if (mode === "json") {
+  console.log(JSON.stringify(versions));
+} else {
+  for (const tool of tools) {
+    console.log(`${tool}: ${versions[tool]}`);
+  }
+}
+
+async function executableSiblingTasks(): Promise<string[]> {
+  const currentFile = new URL(import.meta.url);
+  const currentDir = new URL(".", currentFile);
+  const tasks: string[] = [];
+
+  for await (const entry of Deno.readDir(currentDir)) {
+    if (!entry.isFile || entry.name === currentFile.pathname.split("/").at(-1)) {
+      continue;
+    }
+
+    const stat = await Deno.stat(new URL(entry.name, currentDir));
+    if (stat.mode !== null && (stat.mode & 0o111) !== 0) {
+      tasks.push(entry.name);
+    }
+  }
+
+  return tasks.sort((a, b) => a.localeCompare(b));
+}
+
+function parseMode(args: string[]): "text" | "json" {
+  let mode: "text" | "json" = "text";
+  for (const arg of args) {
+    if (arg === "--json") {
+      mode = "json";
+    } else if (arg === "--text") {
+      mode = "text";
+    } else {
+      console.error(`ERROR: unknown argument: ${arg}`);
+      Deno.exit(1);
+    }
+  }
+  return mode;
+}
+
+async function latestVersion(tool: string): Promise<string> {
+  const command = new Deno.Command("mise", {
+    args: ["-q", `dependencies:latest:${tool}`],
+    stdout: "piped",
+    stderr: "inherit",
+  });
+  const output = await command.output();
+  if (!output.success) {
+    Deno.exit(output.code);
+  }
+  return new TextDecoder().decode(output.stdout).trim();
+}

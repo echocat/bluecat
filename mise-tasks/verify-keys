@@ -1,7 +1,6 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-run --allow-env=COSIGN_PASSWORD
 //MISE description="Validate the MOK and Cosign signing key files"
 //MISE dir="{{config_root}}"
-//MISE tools={deno="latest"}
 // ===========================================================================
 // Verifies that the signing material in certs/ is internally consistent. Used
 // as a precondition of `mise build:image` and in CI after the certificates have

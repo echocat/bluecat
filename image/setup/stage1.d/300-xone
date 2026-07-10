@@ -4,14 +4,13 @@ set -euo pipefail
 # shellcheck source=image/setup/common
 source "$(dirname -- "${BASH_SOURCE[0]}")/../common"
 
-: "${XONE_REPO:=https://github.com/medusalix/xone.git}"
 : "${XONE_REF:=master}"
 
 kver="$(bluecat_kernel_version)"
 signed="/tmp/out/tmp/bluecat-signed"
 
-echo "==> Cloning xone (${XONE_REPO} @ ${XONE_REF})"
-git clone "${XONE_REPO}" /tmp/xone
+echo "==> Cloning github.com/medusalix/xone@${XONE_REF}"
+git clone https://github.com/medusalix/xone.git /tmp/xone
 git -C /tmp/xone checkout "${XONE_REF}"
 
 echo "==> xone firmware is NOT included (proprietary)."

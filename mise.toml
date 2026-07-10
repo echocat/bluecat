@@ -16,6 +16,68 @@ run = [
 ]
 
 [env]
+_.file = ["{{ get_env(name='COMPUTERNAME', default=get_env(name='HOSTNAME', default='ANY')) }}.env", ".env"]
+
+# Fedora major version of the base image (Kinoite).
+FEDORA_MAJOR_VERSION="44"
+
+# Base image (Fedora Atomic Desktop, KDE = Kinoite).
+BASE_IMAGE="quay.io/fedora-ostree-desktops/kinoite"
+
+# -----------------------------------------------------------------------------
+# Target registry / image name
+# -----------------------------------------------------------------------------
+# Primary registry: GitHub Container Registry (ghcr.io). Public projects have
+# no pull/storage limits there.
+# These may be overridden from the environment (e.g. to push to a different
+# registry in CI or a local test registry): a preset value wins over the
+# default below.
+IMAGE_REGISTRY="ghcr.io"
+IMAGE_NAME="echocat/bluecat"
+
+# Local build tag. `mise build` always builds this fixed tag and never pushes
+# it. `mise push` re-tags this image to the real tags (see the push task):
+#   release       -> <major>.<UTC-timestamp>, <major>   (all pushed)
+#   pr <number>   -> pr-<number>                        (only this)
+LOCAL_IMAGE_TAG="local"
+
+# -----------------------------------------------------------------------------
+# Secure Boot / MOK signing
+# -----------------------------------------------------------------------------
+# Names of the certificate files (inside the certs/ directory).
+# IMPORTANT: The private key (MOK_KEY) must NEVER be committed.
+#            Only the public part (MOK_CERT_DER / MOK_CERT_CRT) is safe and
+#            gets placed into the image.
+MOK_KEY="certs/mok.key"      # PRIVATE - blocked by .gitignore!
+MOK_CERT_DER="certs/mok.der" # PUBLIC (DER, for mokutil / kernel)
+MOK_CERT_CRT="certs/mok.crt" # PUBLIC (PEM, used for signing)
+
+# Subject for the self-signed certificate.
+MOK_SUBJECT="/CN=echocat Secure Boot Signing/"
+
+# -----------------------------------------------------------------------------
+# Network install ISO (mise build:iso)
+# -----------------------------------------------------------------------------
+# The ISO is a small Fedora boot medium with an embedded Kickstart that installs
+# the bluecat image from the registry over the network (Anaconda's
+# `ostreecontainer`). It does NOT embed the OS payload, so it stays small and
+# valid across image changes. We use Anaconda (not bootc-image-builder) because
+# bib derives its recipe from os-release ID and only knows fedora/centos/rhel;
+# our image is rebranded to ID="bluecat", which bib rejects. Anaconda ignores
+# ID, so the rebrand stays intact.
+#
+# ISO_IMAGE_TAG : which tag the installer pulls. Defaults to the Fedora major
+#                 version stream (e.g. "44"). The image MUST be pushed under
+#                 this tag before the ISO is usable.
+# ISO_BASE_URL  : the upstream Fedora netinst boot ISO used as the base for
+#                 mkksiso. Kept as a variable so it can be bumped per release.
+# ISO_BUILDER_IMAGE : Fedora container image that provides `mkksiso` (lorax);
+#                 mkksiso does not run on non-Fedora hosts, so it runs in here.
+ISO_IMAGE_TAG="{{ env.FEDORA_MAJOR_VERSION }}"
+ISO_BASE_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/{{ env.FEDORA_MAJOR_VERSION }}/Everything/x86_64/os/images/boot.iso}"
+ISO_BUILDER_IMAGE="registry.fedoraproject.org/fedora:{{ env.FEDORA_MAJOR_VERSION }}"
+
+# Environment variables required for uploading release assets.
 ISO_S3_ENDPOINT_URL = "https://76cbc9ff3d45b6d0e9963e41ddeb9b71.eu.r2.cloudflarestorage.com"
 ISO_S3_BUCKET = "bluecat"
 ISO_S3_PREFIX = "latest"

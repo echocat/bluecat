@@ -13,9 +13,9 @@
 │   ├── branding             # mise branding     (render logo assets, Deno/TS)
 │   ├── syntax               # mise syntax
 │   └── lint/                # mise lint (+ lint:shell/deno/container/workflows/legal)
-├── build.env                # central variables (version, registry, xone ref)
 ├── Containerfile            # 2-stage bootc build
 ├── certs/                   # public cert (mok.der/crt); mok.key = private!
+├── dependencies.yaml        # pinned versions of dependencies
 ├── image/setup/             # scripts that run INSIDE the image build
 │   ├── stage1               # stage 1: runs numbered stage1.d scripts
 │   ├── stage1.d/            # stage 1 setup steps, ordered by filename
@@ -51,7 +51,14 @@ The result is a bootc image that an existing Kinoite system is switched to via
    # Fedora/Red Hat/CentOS
    sudo dnf install -y podman
    ```
-2. Have [mise](https://mise.jdx.dev/) installed (will ensure all other required tools are present):
+2. Have [skopeo](https://github.com/containers/skopeo) installed:
+   ```shell
+   # Ubuntu/Debian
+   sudo apt install -y skopeo
+   # Fedora/Red Hat/CentOS
+   sudo dnf install -y skopeo
+   ```
+3. Have [mise](https://mise.jdx.dev/) installed (will ensure all other required tools are present):
    ```shell
    curl https://mise.run | sh
    ```
@@ -93,6 +100,13 @@ The result is a bootc image that an existing Kinoite system is switched to via
    ```shell
    mise publish:iso
    # https://download.bluecat.echocat.org/latest/bluecat.iso
+   ```
+
+6. Test image publishing/signing without touching release tags:
+   ```shell
+   mise publish:image test local
+   # pushes test-local-<UTC-timestamp>, test-local, sha256-<digest>.sig,
+   # and test-local-<UTC-timestamp>.sig
    ```
 
 

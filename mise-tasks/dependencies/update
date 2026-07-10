@@ -1,0 +1,159 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run=mise --allow-env=FEDORA_MAJOR_VERSION
+//MISE description="Updates all dependencies in /dependencies.yaml if any available."
+//MISE dir="{{config_root}}"
+
+import { parse } from "jsr:@std/yaml@1.0.10";
+
+type DependencyVersions = Record<string, Record<string, string>>;
+type KnownVersions = Record<string, string[]>;
+
+const DEPENDENCIES_PATH = "dependencies.yaml";
+const KNOWN_PATH = "dependencies.known.yaml";
+
+const fedoraMajorVersion = Deno.args[0] ?? Deno.env.get("FEDORA_MAJOR_VERSION");
+if (!fedoraMajorVersion) {
+  console.error(
+    "ERROR: FEDORA_MAJOR_VERSION is not set. Usage: mise dependencies:update [fedora_major_version]",
+  );
+  Deno.exit(1);
+}
+
+const latest = await latestVersions();
+const dependencies = normalizeDependencies(await readYaml(DEPENDENCIES_PATH));
+const known = normalizeKnown(await readYaml(KNOWN_PATH));
+
+dependencies[fedoraMajorVersion] ??= {};
+
+const added: string[] = [];
+const updated: string[] = [];
+
+for (const tool of sortedKeys(latest)) {
+  const version = latest[tool];
+  known[tool] ??= [];
+
+  if (!known[tool].includes(version)) {
+    known[tool].push(version);
+    dependencies[fedoraMajorVersion][tool] = version;
+    added.push(`${tool}: ${version}`);
+    updated.push(`${tool}: ${version}`);
+  }
+}
+
+await Deno.writeTextFile(DEPENDENCIES_PATH, writeDependencies(dependencies));
+await Deno.writeTextFile(KNOWN_PATH, writeKnown(known));
+
+if (added.length === 0) {
+  console.log("==> No new dependency versions found.");
+} else {
+  console.log("==> Added to dependencies.known.yaml:");
+  for (const entry of added) console.log(`    ${entry}`);
+  console.log(`==> Updated dependencies.yaml for Fedora ${fedoraMajorVersion}:`);
+  for (const entry of updated) console.log(`    ${entry}`);
+}
+
+async function latestVersions(): Promise<Record<string, string>> {
+  const command = new Deno.Command("mise", {
+    args: ["-q", "dependencies:latest", "--json"],
+    stdout: "piped",
+    stderr: "inherit",
+  });
+  const output = await command.output();
+  if (!output.success) {
+    Deno.exit(output.code);
+  }
+
+  const parsed = JSON.parse(new TextDecoder().decode(output.stdout)) as Record<
+    string,
+    unknown
+  >;
+  const result: Record<string, string> = {};
+  for (const key of sortedKeys(parsed)) {
+    const value = parsed[key];
+    if (typeof value !== "string" || value.length === 0) {
+      console.error(`ERROR: dependencies:latest returned invalid value for ${key}.`);
+      Deno.exit(1);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+async function readYaml(path: string): Promise<unknown> {
+  try {
+    return parse(await Deno.readTextFile(path));
+  } catch (error) {
+    console.error(`ERROR: failed to read ${path}: ${(error as Error).message}`);
+    Deno.exit(1);
+  }
+}
+
+function normalizeDependencies(value: unknown): DependencyVersions {
+  if (!isRecord(value)) return {};
+
+  const result: DependencyVersions = {};
+  for (const fedoraVersion of sortedKeys(value)) {
+    const tools = value[fedoraVersion];
+    if (!isRecord(tools)) continue;
+
+    result[fedoraVersion] = {};
+    for (const tool of sortedKeys(tools)) {
+      const version = tools[tool];
+      if (version !== undefined && version !== null) {
+        result[fedoraVersion][tool] = String(version);
+      }
+    }
+  }
+  return result;
+}
+
+function normalizeKnown(value: unknown): KnownVersions {
+  if (!isRecord(value)) return {};
+
+  const result: KnownVersions = {};
+  for (const tool of sortedKeys(value)) {
+    const versions = value[tool];
+    if (!Array.isArray(versions)) {
+      result[tool] = [];
+      continue;
+    }
+    result[tool] = versions
+      .filter((version) => version !== undefined && version !== null)
+      .map((version) => String(version));
+  }
+  return result;
+}
+
+function writeDependencies(dependencies: DependencyVersions): string {
+  const lines: string[] = [];
+  for (const fedoraVersion of sortedKeys(dependencies)) {
+    lines.push(`${yamlScalar(fedoraVersion)}:`);
+    for (const tool of sortedKeys(dependencies[fedoraVersion])) {
+      lines.push(`  ${yamlScalar(tool)}: ${yamlScalar(dependencies[fedoraVersion][tool])}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function writeKnown(known: KnownVersions): string {
+  const lines: string[] = [];
+  for (const tool of sortedKeys(known)) {
+    lines.push(`${yamlScalar(tool)}:`);
+    for (const version of known[tool]) {
+      lines.push(`  - ${yamlScalar(version)}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function sortedKeys(value: Record<string, unknown>): string[] {
+  return Object.keys(value).sort((a, b) => a.localeCompare(b));
+}
+
+function yamlScalar(value: string): string {
+  if (/^[A-Za-z0-9._+-]+$/.test(value)) return value;
+  return JSON.stringify(value);
+}

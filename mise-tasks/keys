@@ -1,7 +1,6 @@
-#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-run --allow-env=COSIGN_PASSWORD
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-run --allow-env=COSIGN_PASSWORD --allow-env=MOK_KEY --allow-env=MOK_CERT_CRT --allow-env=MOK_CERT_DER --allow-env=MOK_SUBJECT
 //MISE description="Generate the Secure Boot MOK and Cosign signing keys (run once)"
 //MISE dir="{{config_root}}"
-//MISE tools={deno="latest"}
 // ===========================================================================
 // Generates the signing material ONCE:
 //   - self-signed MOK (Machine Owner Key), used to sign kernel modules
@@ -20,13 +19,8 @@
 // ===========================================================================
 import * as x509 from "npm:@peculiar/x509@1.12.3";
 
-// --- read the relevant values from build.env -------------------------------
-const buildEnv = await Deno.readTextFile("build.env");
 function envValue(name: string, fallback: string): string {
-  // Match lines like:  NAME="value"   (ignoring inline comments after the value)
-  const re = new RegExp(`^${name}="([^"]*)"`, "m");
-  const m = buildEnv.match(re);
-  return m ? m[1] : fallback;
+  return Deno.env.get(name) || fallback;
 }
 
 const MOK_KEY = envValue("MOK_KEY", "certs/mok.key");

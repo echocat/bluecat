@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
 #MISE description="Re-tag the local image and publish it to the registry"
 #MISE dir="{{config_root}}"
-#USAGE arg "[mode]" help="What to push: 'release' (main) or 'pr'" {
-#USAGE   choices "release" "pr"
+#USAGE arg "[mode]" help="What to push: 'release' (main), 'pr', or 'test'" {
+#USAGE   choices "release" "pr" "test"
 #USAGE }
-#USAGE arg "[number]" help="PR number (required when mode is 'pr')"
+#USAGE arg "[number]" help="PR number, or test name (required when mode is 'pr' or 'test')"
 # =============================================================================
 # Re-tags the locally built image (tag "local", produced by `mise build:image`) to
-# the real tags, pushes them and signs each pushed tag with cosign.
+# the real tags, pushes them and signs each unique pushed image digest with cosign.
 #
 #   (no mode)        -> nothing is pushed; logs that this is not acceptable.
-#   release          -> tags <major>.<UTC-timestamp>, <major>, latest
-#                       and pushes ALL THREE. (used on the main branch)
+#   release          -> tags <major>.<UTC-timestamp>, <major>
+#                       and pushes BOTH. (used on the main branch)
+#                       Then signs the release digest once and aliases the
+#                       signature as <major>.<UTC-timestamp>.sig while keeping
+#                       cosign's standard sha256-<image-digest>.sig tag.
 #                       Then keeps the newest RELEASE_TAG_RETENTION timestamp
-#                       tags (default: 3) and removes older timestamp-only
+#                       tags (default: 3) and removes older timestamp/signature
 #                       package versions from GHCR.
 #   pr <number>      -> tags pr-<number> and pushes ONLY pr-<number>.
+#   test <name>      -> tags test-<name>-<UTC-timestamp> and test-<name>,
+#                       signs only the timestamp tag, and aliases the signature
+#                       as test-<name>-<UTC-timestamp>.sig. Does not cleanup.
 #
 # UTC timestamp format: <major>.<YYYYMMDD>T<HHmm>  e.g. 44.20260706T1432
 #
@@ -32,7 +38,6 @@
 set -euo pipefail
 
 # shellcheck source=/dev/null
-source ./build.env
 
 # usage args are exposed as environment variables by mise/usage.
 MODE="${usage_mode:-}"
@@ -40,6 +45,11 @@ NUMBER="${usage_number:-}"
 
 if ! command -v podman >/dev/null 2>&1; then
   echo "ERROR: podman not found." >&2
+  exit 1
+fi
+
+if ! command -v skopeo >/dev/null 2>&1; then
+  echo "ERROR: skopeo not found." >&2
   exit 1
 fi
 
@@ -57,7 +67,7 @@ fi
 if [[ -z "${MODE}" ]]; then
   echo "==> No push mode given."
   echo "    Pushing without an explicit mode is not acceptable."
-  echo "    Use 'mise publish:image release' or 'mise publish:image pr <number>'."
+  echo "    Use 'mise publish:image release', 'mise publish:image pr <number>', or 'mise publish:image test <name>'."
   exit 0
 fi
 
@@ -73,8 +83,8 @@ if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_TOKEN:-}" ]]; then
   fi
 fi
 
-sign_image() {
-  local tag="$1"
+sign_image_ref() {
+  local ref="$1"
 
   if ! command -v cosign >/dev/null 2>&1; then
     echo "ERROR: cosign not found. Run this task through mise." >&2
@@ -85,17 +95,50 @@ sign_image() {
     exit 1
   fi
 
-  echo "==> Sign ${REPO}:${tag}"
+  echo "==> Sign ${ref}"
   cosign sign --yes --use-signing-config=false --new-bundle-format=false \
-    --key "${COSIGN_KEY}" "${REPO}:${tag}"
+    --key "${COSIGN_KEY}" "${ref}"
 }
 
-tag_and_push() {
+push_image_tag() {
   local tag="$1"
   echo "==> Tag + push ${REPO}:${tag}"
   podman tag "${LOCAL_REF}" "${REPO}:${tag}"
   podman push --compression-format=zstd --compression-level=19 --force-compression "${REPO}:${tag}"
-  sign_image "${tag}"
+}
+
+image_digest_for_tag() {
+  local tag="$1"
+  skopeo inspect --format '{{.Digest}}' "docker://${REPO}:${tag}"
+}
+
+signature_tag_for_digest() {
+  local digest="$1"
+  printf 'sha256-%s.sig\n' "${digest#sha256:}"
+}
+
+alias_signature_tag() {
+  local digest="$1"
+  local alias_tag="$2"
+  local signature_tag
+
+  signature_tag="$(signature_tag_for_digest "${digest}")"
+  echo "==> Alias signature ${REPO}:${signature_tag} as ${REPO}:${alias_tag}"
+  skopeo copy --preserve-digests \
+    "docker://${REPO}:${signature_tag}" \
+    "docker://${REPO}:${alias_tag}"
+}
+
+is_cosign_signature_manifest() {
+  local ref="$1"
+  local raw
+
+  if ! raw="$(skopeo inspect --raw "docker://${ref}" 2>/dev/null)"; then
+    echo "    WARNING: cannot inspect ${ref}; keeping it." >&2
+    return 1
+  fi
+
+  [[ "${raw}" == *"application/vnd.dev.cosign.simplesigning.v1+json"* ]]
 }
 
 cleanup_release_tags() {
@@ -136,12 +179,12 @@ cleanup_release_tags() {
 
   if GH_TOKEN="${token}" gh api --paginate \
       "/orgs/${owner}/packages/container/${package_api}/versions?per_page=100" \
-      --jq '.[] | [.id, (.metadata.container.tags // [] | join(","))] | @tsv' \
+      --jq '.[] | [.id, .name, (.metadata.container.tags // [] | join(","))] | @tsv' \
       > "${versions_file}" 2>/dev/null; then
     endpoint="/orgs/${owner}/packages/container/${package_api}/versions"
   elif GH_TOKEN="${token}" gh api --paginate \
       "/users/${owner}/packages/container/${package_api}/versions?per_page=100" \
-      --jq '.[] | [.id, (.metadata.container.tags // [] | join(","))] | @tsv' \
+      --jq '.[] | [.id, .name, (.metadata.container.tags // [] | join(","))] | @tsv' \
       > "${versions_file}" 2>/dev/null; then
     endpoint="/users/${owner}/packages/container/${package_api}/versions"
   else
@@ -151,64 +194,147 @@ cleanup_release_tags() {
   fi
 
   local entries=()
-  local id tags_csv tag protected timestamp_regex
+  local id name tags_csv tag protected timestamp_regex timestamp_signature_regex cosign_signature_regex
+  local -A version_names=()
+  local -A version_tags=()
+  local -A retained_image_digests=()
+  local -A retained_timestamp_tags=()
+  local -A deleted_ids=()
   timestamp_regex="^${FEDORA_MAJOR_VERSION}\.[0-9]{8}T[0-9]{4}$"
+  timestamp_signature_regex="^${FEDORA_MAJOR_VERSION}\.[0-9]{8}T[0-9]{4}\.sig$"
+  cosign_signature_regex='^sha256-[0-9a-f]{64}(\.sig)?$'
 
-  while IFS=$'\t' read -r id tags_csv; do
-    [[ -z "${id}" || -z "${tags_csv}" ]] && continue
+  while IFS=$'\t' read -r id name tags_csv; do
+    [[ -z "${id}" || -z "${name}" ]] && continue
+    version_names["${id}"]="${name}"
+    version_tags["${id}"]="${tags_csv}"
+
     protected=0
     IFS=',' read -r -a tags <<< "${tags_csv}"
     for tag in "${tags[@]}"; do
-      if [[ "${tag}" == "latest" || "${tag}" == "${FEDORA_MAJOR_VERSION}" || "${tag}" == pr-* ]]; then
+      if [[ "${tag}" == "${FEDORA_MAJOR_VERSION}" || "${tag}" == pr-* ]]; then
         protected=1
+        if [[ "${name}" == sha256:* ]]; then
+          retained_image_digests["${name}"]=1
+        fi
       fi
     done
     for tag in "${tags[@]}"; do
       if [[ "${tag}" =~ ${timestamp_regex} ]]; then
-        entries+=("${tag}"$'\t'"${id}"$'\t'"${protected}"$'\t'"${tags_csv}")
+        entries+=("${tag}"$'\t'"${id}"$'\t'"${protected}"$'\t'"${tags_csv}"$'\t'"${name}")
       fi
     done
   done < "${versions_file}"
-  rm -f "${versions_file}"
 
   if [[ "${#entries[@]}" -le "${retention}" ]]; then
     echo "==> release tag cleanup: ${#entries[@]} timestamp tags present; keeping all (retention=${retention})"
-    return 0
+  else
+    echo "==> release tag cleanup: keeping newest ${retention} timestamp tags"
   fi
 
-  echo "==> release tag cleanup: keeping newest ${retention} timestamp tags"
   local sorted=()
-  mapfile -t sorted < <(printf '%s\n' "${entries[@]}" | sort -r)
+  if [[ "${#entries[@]}" -gt 0 ]]; then
+    mapfile -t sorted < <(printf '%s\n' "${entries[@]}" | sort -r)
+  fi
 
-  local index version_id is_protected all_tags
-  local deleted_ids=()
+  local index version_id is_protected all_tags version_name
   for index in "${!sorted[@]}"; do
-    [[ "${index}" -lt "${retention}" ]] && continue
-
-    IFS=$'\t' read -r tag version_id is_protected all_tags <<< "${sorted[${index}]}"
-    if [[ "${is_protected}" == "1" ]]; then
-      echo "    keep ${tag}: package version also has protected tag(s): ${all_tags}"
+    IFS=$'\t' read -r tag version_id is_protected all_tags version_name <<< "${sorted[${index}]}"
+    if [[ "${index}" -lt "${retention}" ]]; then
+      retained_timestamp_tags["${tag}"]=1
+      if [[ "${version_name}" == sha256:* ]]; then
+        retained_image_digests["${version_name}"]=1
+      fi
       continue
     fi
 
-    if [[ " ${deleted_ids[*]} " == *" ${version_id} "* ]]; then
+    if [[ "${is_protected}" == "1" ]]; then
+      echo "    keep ${tag}: package version also has protected tag(s): ${all_tags}"
+      if [[ "${version_name}" == sha256:* ]]; then
+        retained_image_digests["${version_name}"]=1
+      fi
       continue
     fi
 
     echo "    delete old timestamp tag ${tag} (package version ${version_id})"
     GH_TOKEN="${token}" gh api --method DELETE "${endpoint}/${version_id}"
-    deleted_ids+=("${version_id}")
+    deleted_ids["${version_id}"]=1
   done
+
+  echo "==> signature cleanup: removing old cosign signature versions"
+  local has_signature_tag keep_signature delete_signature target_digest timestamp_tag
+  for version_id in "${!version_names[@]}"; do
+    if [[ -n "${deleted_ids[${version_id}]:-}" ]]; then
+      continue
+    fi
+
+    version_name="${version_names[${version_id}]}"
+    tags_csv="${version_tags[${version_id}]}"
+    has_signature_tag=0
+    keep_signature=0
+    delete_signature=0
+    IFS=',' read -r -a tags <<< "${tags_csv}"
+
+    for tag in "${tags[@]}"; do
+      [[ -z "${tag}" ]] && continue
+
+      if [[ "${tag}" == "${FEDORA_MAJOR_VERSION}" || "${tag}" == pr-* || "${tag}" =~ ${timestamp_regex} ]]; then
+        keep_signature=1
+      elif [[ "${tag}" =~ ${cosign_signature_regex} ]]; then
+        has_signature_tag=1
+        target_digest="sha256:${tag#sha256-}"
+        target_digest="${target_digest%.sig}"
+        if [[ -n "${retained_image_digests[${target_digest}]:-}" ]]; then
+          keep_signature=1
+        else
+          delete_signature=1
+        fi
+      elif [[ "${tag}" =~ ${timestamp_signature_regex} ]]; then
+        has_signature_tag=1
+        timestamp_tag="${tag%.sig}"
+        if [[ -n "${retained_timestamp_tags[${timestamp_tag}]:-}" ]]; then
+          keep_signature=1
+        else
+          delete_signature=1
+        fi
+      else
+        keep_signature=1
+      fi
+    done
+
+    if [[ "${keep_signature}" == "1" ]]; then
+      continue
+    fi
+
+    if [[ -z "${tags_csv}" && "${version_name}" == sha256:* ]]; then
+      if is_cosign_signature_manifest "${REPO}@${version_name}"; then
+        echo "    delete untagged cosign signature package version ${version_id} (${version_name})"
+        GH_TOKEN="${token}" gh api --method DELETE "${endpoint}/${version_id}"
+        deleted_ids["${version_id}"]=1
+      fi
+    elif [[ "${has_signature_tag}" == "1" && "${delete_signature}" == "1" ]]; then
+      if is_cosign_signature_manifest "${REPO}@${version_name}"; then
+        echo "    delete old cosign signature package version ${version_id} (${tags_csv})"
+        GH_TOKEN="${token}" gh api --method DELETE "${endpoint}/${version_id}"
+        deleted_ids["${version_id}"]=1
+      fi
+    fi
+  done
+
+  rm -f "${versions_file}"
 }
 
 case "${MODE}" in
   release)
     TIMESTAMP="$(date -u +%Y%m%dT%H%M)"
     TS_TAG="${FEDORA_MAJOR_VERSION}.${TIMESTAMP}"
-    echo "==> release: pushing ${TS_TAG}, ${FEDORA_MAJOR_VERSION}, latest"
-    tag_and_push "${TS_TAG}"
-    tag_and_push "${FEDORA_MAJOR_VERSION}"
-    tag_and_push "latest"
+    TS_SIG_TAG="${TS_TAG}.sig"
+    echo "==> release: pushing ${TS_TAG}, ${FEDORA_MAJOR_VERSION}"
+    push_image_tag "${TS_TAG}"
+    push_image_tag "${FEDORA_MAJOR_VERSION}"
+    DIGEST="$(image_digest_for_tag "${TS_TAG}")"
+    sign_image_ref "${REPO}:${TS_TAG}"
+    alias_signature_tag "${DIGEST}" "${TS_SIG_TAG}"
     cleanup_release_tags
     ;;
 
@@ -218,11 +344,35 @@ case "${MODE}" in
       exit 1
     fi
     echo "==> pr: pushing pr-${NUMBER} only"
-    tag_and_push "pr-${NUMBER}"
+    PR_TAG="pr-${NUMBER}"
+    push_image_tag "${PR_TAG}"
+    sign_image_ref "${REPO}:${PR_TAG}"
+    ;;
+
+  test)
+    if [[ -z "${NUMBER}" ]]; then
+      echo "ERROR: mode 'test' requires a name: mise publish:image test <name>" >&2
+      exit 1
+    fi
+    if ! [[ "${NUMBER}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+      echo "ERROR: test name must match [A-Za-z0-9][A-Za-z0-9_.-]* (got: ${NUMBER})." >&2
+      exit 1
+    fi
+
+    TIMESTAMP="$(date -u +%Y%m%dT%H%M)"
+    TEST_TAG="test-${NUMBER}"
+    TEST_TS_TAG="${TEST_TAG}-${TIMESTAMP}"
+    TEST_TS_SIG_TAG="${TEST_TS_TAG}.sig"
+    echo "==> test: pushing ${TEST_TS_TAG}, ${TEST_TAG}"
+    push_image_tag "${TEST_TS_TAG}"
+    push_image_tag "${TEST_TAG}"
+    DIGEST="$(image_digest_for_tag "${TEST_TS_TAG}")"
+    sign_image_ref "${REPO}:${TEST_TS_TAG}"
+    alias_signature_tag "${DIGEST}" "${TEST_TS_SIG_TAG}"
     ;;
 
   *)
-    echo "ERROR: unknown mode '${MODE}' (expected 'release' or 'pr')." >&2
+    echo "ERROR: unknown mode '${MODE}' (expected 'release', 'pr', or 'test')." >&2
     exit 1
     ;;
 esac

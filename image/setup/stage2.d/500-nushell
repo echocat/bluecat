@@ -4,29 +4,25 @@ set -euo pipefail
 # shellcheck source=image/setup/common
 source "$(dirname -- "${BASH_SOURCE[0]}")/../common"
 
-echo "==> Nushell (GitHub release tarball)"
+if [[ -z "${NUSHELL_VERSION:-}" ]]; then
+  echo "ERROR: NUSHELL_VERSION is not set." >&2
+  exit 1
+fi
+
+echo "==> Nushell ${NUSHELL_VERSION} (GitHub release tarball)"
 case "$(uname -m)" in
   x86_64|aarch64) nushell_arch="$(uname -m)" ;;
   *) echo "Unsupported architecture for Nushell: $(uname -m)" >&2; exit 1 ;;
 esac
-
-nushell_version="$(
-  retry curl -fsSL --retry 3 https://api.github.com/repos/nushell/nushell/releases/latest |
-    sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p'
-)"
-if [[ -z "${nushell_version}" ]]; then
-  echo "Could not determine latest Nushell release version" >&2
-  exit 1
-fi
 
 nushell_tmpdir="$(mktemp -d)"
 trap 'rm -rf "${nushell_tmpdir}"' EXIT
 
 retry curl -fsSL --retry 3 \
   -o "${nushell_tmpdir}/nushell.tar.gz" \
-  "https://github.com/nushell/nushell/releases/download/${nushell_version}/nu-${nushell_version}-${nushell_arch}-unknown-linux-gnu.tar.gz"
+  "https://github.com/nushell/nushell/releases/download/${NUSHELL_VERSION}/nu-${NUSHELL_VERSION}-${nushell_arch}-unknown-linux-gnu.tar.gz"
 tar -xzf "${nushell_tmpdir}/nushell.tar.gz" -C "${nushell_tmpdir}"
 
-nushell_extract_dir="${nushell_tmpdir}/nu-${nushell_version}-${nushell_arch}-unknown-linux-gnu"
+nushell_extract_dir="${nushell_tmpdir}/nu-${NUSHELL_VERSION}-${nushell_arch}-unknown-linux-gnu"
 find "${nushell_extract_dir}" -maxdepth 1 -type f -name 'nu*' -exec install -m 0755 {} /usr/bin/ \;
 /usr/bin/nu --version
