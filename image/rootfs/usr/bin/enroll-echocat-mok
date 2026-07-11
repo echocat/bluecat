@@ -15,9 +15,9 @@ dialog_with_skip() {
 
 log() {
   if command -v systemd-cat >/dev/null 2>&1; then
-    printf '%s\n' "$*" | systemd-cat -t bluecat-enroll-mok --priority=info || true
+    printf '%s\n' "$*" | systemd-cat -t enroll-echocat-mok --priority=info || true
   else
-    printf 'bluecat-enroll-mok: %s\n' "$*" >&2 || true
+    printf 'enroll-echocat-mok: %s\n' "$*" >&2 || true
   fi
 }
 

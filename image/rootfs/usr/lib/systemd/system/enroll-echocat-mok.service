@@ -10,7 +10,7 @@ Before=getty@tty1.service display-manager.service graphical.target
 [Service]
 Type=oneshot
 ExecStartPre=/usr/sbin/chvt 9
-ExecStart=/usr/bin/bluecat-enroll-mok
+ExecStart=/usr/bin/enroll-echocat-mok
 StandardInput=tty-force
 StandardOutput=tty
 StandardError=tty

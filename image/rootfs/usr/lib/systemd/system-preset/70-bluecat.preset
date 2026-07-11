@@ -1,4 +1,4 @@
-enable bluecat-enroll-mok.service
+enable enroll-echocat-mok.service
 enable bluecat-add-flathub.service
 enable bluecat-install-brave.service
 enable nix.mount

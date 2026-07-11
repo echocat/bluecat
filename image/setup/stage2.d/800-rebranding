@@ -25,7 +25,7 @@ echo "==> Enabling bluecat first-boot services"
 systemctl preset \
   bluecat-add-flathub.service \
   bluecat-install-brave.service \
-  bluecat-enroll-mok.service
+  enroll-echocat-mok.service
 
 echo "==> Rebranding: rewriting os-release"
 FEDORA_VERSION_ID="$(. /usr/lib/os-release 2>/dev/null; echo "${VERSION_ID:-${FEDORA_MAJOR_VERSION}}")"
