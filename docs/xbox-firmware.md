@@ -35,6 +35,12 @@ Alternatively, launch **Enable Xbox Wireless Adapter Firmware** from the desktop
 application menu. The launcher uses `pkexec` to request root privileges and runs
 the same activator in a terminal.
 
+When installing from the bluecat ISO, accepting the installer EULA/notices also
+authorizes this local firmware download setup. The installer records the
+acknowledgement, enables the fetch service for the installed system, and tries a
+best-effort download during installation. If that download fails, the enabled
+service retries on normal boot.
+
 The activator:
 
 1. Requires root and checks the required tools
@@ -42,9 +48,10 @@ The activator:
 2. Prints a clear disclaimer and links to Microsoft's terms of use and the
    xone project.
 3. Requires explicit confirmation through a `whiptail` dialog. If `whiptail`
-   cannot be used, it falls back to typing exactly `yes`. **The default is to
-   abort** — if you do not confirm, **nothing is created and nothing is
-   downloaded.**
+   cannot be used, it falls back to typing exactly `yes`. The ISO installer uses
+   the explicit `--accept-microsoft-eula --non-interactive` mode only after its
+   own EULA/notice gate was accepted. **The default is to abort** — if you do not
+   confirm, **nothing is created and nothing is downloaded.**
 
 Only **after** you confirm, it creates locally:
 
