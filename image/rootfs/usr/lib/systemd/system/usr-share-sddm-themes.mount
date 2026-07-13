@@ -1,0 +1,15 @@
+[Unit]
+Description=Writable SDDM themes bind mount
+DefaultDependencies=no
+Requires=bluecat-sddm-themes-prepare.service
+After=bluecat-sddm-themes-prepare.service
+Before=sddm.service display-manager.service
+
+[Mount]
+What=/var/lib/sddm/themes
+Where=/usr/share/sddm/themes
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target

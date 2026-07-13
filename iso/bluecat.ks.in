@@ -1,4 +1,4 @@
-rootpw --lock
+autopart --hibernation
 
 bootc --source-imgref oci:/run/install/repo/images/bluecat.oci:bluecat:local --target-imgref @@TARGET_IMAGE_REF@@ --stateroot bluecat
 

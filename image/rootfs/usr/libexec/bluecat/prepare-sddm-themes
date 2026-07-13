@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_dir="/usr/share/sddm/themes"
+target_dir="/var/lib/sddm/themes"
+
+install -d -m 0755 "${target_dir}"
+
+shopt -s nullglob dotglob
+existing=("${target_dir}"/*)
+if (( ${#existing[@]} > 0 )); then
+  exit 0
+fi
+
+themes=("${source_dir}"/*)
+if (( ${#themes[@]} > 0 )); then
+  cp -a "${themes[@]}" "${target_dir}/"
+fi
+
+chmod 0755 "${target_dir}"

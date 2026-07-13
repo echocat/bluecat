@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Display manager: switching default to SDDM"
+rpm-ostree install -y \
+  sddm \
+  sddm-x11 \
+  sddm-breeze
+
+echo "==> Display manager: creating bluecat Breeze SDDM theme"
+source_theme="/usr/share/sddm/themes/breeze"
+target_theme="/usr/share/sddm/themes/bluecat-breeze"
+logo_source="/usr/share/sddm/themes/bluecat/logo.png"
+
+if [[ -d "${source_theme}" && -e "${logo_source}" ]]; then
+  rm -rf "${target_theme}"
+  cp -a "${source_theme}" "${target_theme}"
+  cp -f "${logo_source}" "${target_theme}/bluecat-logo.png"
+
+  cat > "${target_theme}/theme.conf" <<'EOF'
+[General]
+showlogo=shown
+showClock=true
+logo=/usr/share/sddm/themes/bluecat-breeze/bluecat-logo.png
+type=image
+color=#006fb3
+fontSize=10
+background=/usr/share/wallpapers/Next/contents/images/5120x2880.png
+needsFullUserModel=false
+EOF
+else
+  echo "    NOTE: Breeze theme or bluecat SDDM logo missing; falling back to stock breeze"
+  sed -i 's/^Current=.*/Current=breeze/' /usr/lib/sddm/sddm.conf.d/10-bluecat.conf
+fi
+
+echo "==> Display manager: enabling SDDM and writable theme bind mount"
+# Keep Plasma Login installed and switchable, but make SDDM the active display manager.
+systemctl disable plasmalogin.service plasma-login-manager.service plasma-login.service plasma-setup.service 2>/dev/null || true
+systemctl mask plasma-setup.service
+systemctl enable --force NetworkManager.service sddm.service usr-share-sddm-themes.mount

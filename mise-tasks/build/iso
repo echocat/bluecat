@@ -140,6 +140,12 @@ echo "==> Building offline ISO with mkksiso (in ${ISO_BUILDER_IMAGE}, as root)"
         "${prod}/etc/system-release.in" > "${prod}/etc/system-release"
     rm -f "${prod}/etc/system-release.in"
 
+    if [[ -f "${prod}/etc/os-release.in" ]]; then
+      sed -e "s|@@VERSION@@|${VERSION}|g" \
+          "${prod}/etc/os-release.in" > "${prod}/etc/os-release"
+      rm -f "${prod}/etc/os-release.in"
+    fi
+
     ( cd "${prod}" && find . | cpio -o -H newc --quiet | gzip -9 ) \
       > "${add_root}/images/product.img"
 

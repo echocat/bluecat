@@ -1,6 +1,9 @@
 enable enroll-echocat-mok.service
 enable bluecat-add-flathub.service
 enable bluecat-install-brave.service
+enable NetworkManager.service
+enable sddm.service
+enable usr-share-sddm-themes.mount
 enable nix.mount
 enable bluecat-nix-setup.service
 enable nix-daemon.service

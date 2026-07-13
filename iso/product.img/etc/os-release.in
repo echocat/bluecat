@@ -1,0 +1,11 @@
+NAME="bluecat"
+VERSION="@@VERSION@@"
+ID=bluecat
+ID_LIKE=fedora
+VERSION_ID=@@VERSION@@
+PRETTY_NAME="bluecat @@VERSION@@"
+ANSI_COLOR="0;38;2;0;111;179"
+LOGO=bluecat-logo-icon
+HOME_URL="https://github.com/echocat/bluecat"
+DOCUMENTATION_URL="https://github.com/echocat/bluecat"
+BUG_REPORT_URL="https://github.com/echocat/bluecat/issues"

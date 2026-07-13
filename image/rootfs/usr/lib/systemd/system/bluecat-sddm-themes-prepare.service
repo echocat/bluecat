@@ -1,0 +1,10 @@
+[Unit]
+Description=Prepare writable SDDM theme backing directory
+DefaultDependencies=no
+RequiresMountsFor=/var
+Before=usr-share-sddm-themes.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bluecat/prepare-sddm-themes
+RemainAfterExit=yes
