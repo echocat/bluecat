@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-#MISE description="Re-tag the local image and publish it to the registry"
+#MISE description="Publish the chunked OCI layout to the registry"
 #MISE dir="{{config_root}}"
 #USAGE arg "[mode]" help="What to push: 'release' (main), 'pr', or 'test'" {
 #USAGE   choices "release" "pr" "test"
 #USAGE }
 #USAGE arg "[number]" help="PR number, or test name (required when mode is 'pr' or 'test')"
 # =============================================================================
-# Re-tags the locally built image (tag "local", produced by `mise build:image`) to
-# the real tags, pushes them and signs each unique pushed image digest with cosign.
+# Publishes the locally built chunked OCI layout to the real tags and signs each
+# unique pushed image digest with cosign.
 #
 #   (no mode)        -> nothing is pushed; logs that this is not acceptable.
 #   release          -> tags <major>.<UTC-timestamp>, <major>
@@ -21,7 +21,8 @@
 #   pr <number>      -> tags pr-<number> and pushes ONLY pr-<number>.
 #   test <name>      -> tags test-<name>-<UTC-timestamp> and test-<name>,
 #                       signs only the timestamp tag, and aliases the signature
-#                       as test-<name>-<UTC-timestamp>.sig. Does not cleanup.
+#                       as test-<name>-<UTC-timestamp>.sig. Does not clean up
+#                       registry tags.
 #
 # UTC timestamp format: <major>.<YYYYMMDD>T<HHmm>  e.g. 44.20260706T1432
 #
@@ -54,12 +55,18 @@ if ! command -v skopeo >/dev/null 2>&1; then
 fi
 
 REPO="${IMAGE_REGISTRY}/${IMAGE_NAME}"
-LOCAL_REF="${REPO}:${LOCAL_IMAGE_TAG}"
+OUTPUT_DIR="output"
+CHUNKED_OCI="${OUTPUT_DIR}/bluecat.oci"
+CHUNKED_OCI_REF="bluecat:${LOCAL_CHUNKED_IMAGE_TAG}"
 COSIGN_KEY="${COSIGN_KEY:-certs/cosign.key}"
 
-# --- guard: the local image must exist --------------------------------------
-if ! podman image exists "${LOCAL_REF}" 2>/dev/null; then
-  echo "ERROR: ${LOCAL_REF} not found. Run \`mise build:image\` first." >&2
+# --- guard: the chunked OCI layout must exist -------------------------------
+if [[ ! -f "${CHUNKED_OCI}/index.json" ]]; then
+  echo "ERROR: ${CHUNKED_OCI} not found. Run \`mise build:chunked-image\` first." >&2
+  exit 1
+fi
+if ! skopeo inspect "oci:${CHUNKED_OCI}:${CHUNKED_OCI_REF}" >/dev/null; then
+  echo "ERROR: ${CHUNKED_OCI} does not contain ${CHUNKED_OCI_REF}. Run \`mise build:chunked-image\` first." >&2
   exit 1
 fi
 
@@ -102,9 +109,23 @@ sign_image_ref() {
 
 push_image_tag() {
   local tag="$1"
-  echo "==> Tag + push ${REPO}:${tag}"
-  podman tag "${LOCAL_REF}" "${REPO}:${tag}"
-  podman push --compression-format=zstd --compression-level=19 --force-compression "${REPO}:${tag}"
+  echo "==> Push ${CHUNKED_OCI}:${CHUNKED_OCI_REF} -> ${REPO}:${tag} (zstd)"
+  skopeo copy \
+    --dest-compress-format=zstd \
+    --dest-compress-level=19 \
+    --dest-force-compress-format \
+    "oci:${CHUNKED_OCI}:${CHUNKED_OCI_REF}" \
+    "docker://${REPO}:${tag}"
+}
+
+copy_image_tag() {
+  local source_tag="$1"
+  local target_tag="$2"
+
+  echo "==> Copy ${REPO}:${source_tag} -> ${REPO}:${target_tag}"
+  skopeo copy --preserve-digests \
+    "docker://${REPO}:${source_tag}" \
+    "docker://${REPO}:${target_tag}"
 }
 
 image_digest_for_tag() {
@@ -331,9 +352,9 @@ case "${MODE}" in
     TS_SIG_TAG="${TS_TAG}.sig"
     echo "==> release: pushing ${TS_TAG}, ${FEDORA_MAJOR_VERSION}"
     push_image_tag "${TS_TAG}"
-    push_image_tag "${FEDORA_MAJOR_VERSION}"
+    copy_image_tag "${TS_TAG}" "${FEDORA_MAJOR_VERSION}"
     DIGEST="$(image_digest_for_tag "${TS_TAG}")"
-    sign_image_ref "${REPO}:${TS_TAG}"
+    sign_image_ref "${REPO}@${DIGEST}"
     alias_signature_tag "${DIGEST}" "${TS_SIG_TAG}"
     cleanup_release_tags
     ;;
@@ -346,7 +367,8 @@ case "${MODE}" in
     echo "==> pr: pushing pr-${NUMBER} only"
     PR_TAG="pr-${NUMBER}"
     push_image_tag "${PR_TAG}"
-    sign_image_ref "${REPO}:${PR_TAG}"
+    DIGEST="$(image_digest_for_tag "${PR_TAG}")"
+    sign_image_ref "${REPO}@${DIGEST}"
     ;;
 
   test)
@@ -365,9 +387,9 @@ case "${MODE}" in
     TEST_TS_SIG_TAG="${TEST_TS_TAG}.sig"
     echo "==> test: pushing ${TEST_TS_TAG}, ${TEST_TAG}"
     push_image_tag "${TEST_TS_TAG}"
-    push_image_tag "${TEST_TAG}"
+    copy_image_tag "${TEST_TS_TAG}" "${TEST_TAG}"
     DIGEST="$(image_digest_for_tag "${TEST_TS_TAG}")"
-    sign_image_ref "${REPO}:${TEST_TS_TAG}"
+    sign_image_ref "${REPO}@${DIGEST}"
     alias_signature_tag "${DIGEST}" "${TEST_TS_SIG_TAG}"
     ;;
 

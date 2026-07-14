@@ -2,4 +2,4 @@
 set -euo pipefail
 
 echo "==> Nix package manager (multi-user daemon)"
-rpm-ostree install -y nix nix-daemon
+dnf5 install -y nix nix-daemon

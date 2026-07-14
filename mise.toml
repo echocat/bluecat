@@ -13,6 +13,7 @@ env_file = ".env"
 [tasks."build"]
 run = [
     { task = "build:image" },
+    { task = "build:chunked-image" },
     { task = "build:iso" },
 ]
 
@@ -36,11 +37,13 @@ BASE_IMAGE="quay.io/fedora-ostree-desktops/kinoite"
 IMAGE_REGISTRY="ghcr.io"
 IMAGE_NAME="echocat/bluecat"
 
-# Local build tag. `mise build` always builds this fixed tag and never pushes
-# it. `mise push` re-tags this image to the real tags (see the push task):
+# Local build tags. `mise build:image` builds :local, then `mise build:chunked-image`
+# creates output/bluecat.oci with the :local-chunked reference. Publishing copies
+# that OCI layout to the real tags:
 #   release       -> <major>.<UTC-timestamp>, <major>   (all pushed)
 #   pr <number>   -> pr-<number>                        (only this)
 LOCAL_IMAGE_TAG="local"
+LOCAL_CHUNKED_IMAGE_TAG="local-chunked"
 
 # -----------------------------------------------------------------------------
 # Secure Boot / MOK signing
@@ -57,15 +60,11 @@ MOK_CERT_CRT="certs/mok.crt" # PUBLIC (PEM, used for signing)
 MOK_SUBJECT="/CN=echocat Secure Boot Signing/"
 
 # -----------------------------------------------------------------------------
-# Network install ISO (mise build:iso)
+# Offline install ISO (mise build:iso)
 # -----------------------------------------------------------------------------
-# The ISO is a small Fedora boot medium with an embedded Kickstart that installs
-# the bluecat image from the registry over the network (Anaconda's
-# `ostreecontainer`). It does NOT embed the OS payload, so it stays small and
-# valid across image changes. We use Anaconda (not bootc-image-builder) because
-# bib derives its recipe from os-release ID and only knows fedora/centos/rhel;
-# our image is rebranded to ID="bluecat", which bib rejects. Anaconda ignores
-# ID, so the rebrand stays intact.
+# The ISO is a Fedora boot medium with an embedded Kickstart and an embedded
+# chunked bluecat OCI payload. The initial install is offline; the installed
+# system records ISO_IMAGE_TAG as its update target.
 #
 # ISO_IMAGE_TAG : which tag the installer pulls. Defaults to the Fedora major
 #                 version stream (e.g. "44"). The image MUST be pushed under

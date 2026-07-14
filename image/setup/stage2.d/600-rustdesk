@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "==> RustDesk ${RUSTDESK_VERSION} (direct RPM from GitHub)"
-rpm-ostree install -y \
+dnf5 install -y \
   "https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_VERSION}/rustdesk-${RUSTDESK_VERSION}-0.x86_64.rpm"
 
 echo "==> RustDesk: SELinux file context for hbbs/hbbr"
