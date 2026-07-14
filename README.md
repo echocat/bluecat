@@ -1,204 +1,133 @@
-# bluecat — unofficial Fedora Atomic based desktop image
+# bluecat
 
-`bluecat` is an **unofficial** desktop image built from **Fedora** software
-(Fedora Atomic Desktop / Kinoite, KDE) based on **bootc / OCI**.
+`bluecat` is an **unofficial [Fedora Atomic Desktop / Kinoite](https://fedoraproject.org/atomic-desktops/kinoite/)
+based desktop image** built as a **[bootc](https://bootc-dev.github.io/bootc/) /
+[OCI](https://opencontainers.org/) image**. It is intended as a ready-to-install
+[KDE Plasma](https://kde.org/plasma-desktop/) desktop with selected hardware,
+gaming, container and developer defaults.
+
+The project publishes:
+
+- a signed OCI image at `ghcr.io/echocat/bluecat`
+- a rolling offline installer ISO at
+  <https://download.bluecat.echocat.org/latest/bluecat.iso>
 
 > [!NOTE]
-> **Not affiliated with, endorsed by, or produced by the Fedora Project or
-> Red Hat, Inc.** The word "Fedora" is used only descriptively to identify the
-> upstream software this image is built from. Official, unmodified Fedora
-> software is available from the [Fedora Project](https://fedoraproject.org/).
+> `bluecat` is **not affiliated with, endorsed by, or produced by the Fedora
+> Project or Red Hat, Inc.** The word "Fedora" is used only descriptively to
+> identify the upstream software this image is built from. Official, unmodified
+> Fedora software is available from the [Fedora Project](https://fedoraproject.org/).
 
-#### Included
+> [!IMPORTANT]
+> This image is not fully open source. It may include proprietary NVIDIA driver
+> components from RPM Fusion nonfree, and it can optionally download proprietary
+> Microsoft Xbox Wireless Adapter firmware after explicit local user consent.
+> See [License And Legal Notes](#license-and-legal-notes).
 
-- **NVIDIA drivers** from RPM Fusion (nonfree), kernel modules pre-compiled.
-  These are **proprietary** NVIDIA components subject to NVIDIA's own license
-  terms (see [`docs/nvidia.md`](docs/nvidia.md)); this project's license does
-  not apply to them.
-- [**xone** (Xbox controller driver)](https://github.com/medusalix/xone). The
-  proprietary Microsoft Xbox Wireless Adapter firmware is **not** included and
-  is only fetched locally, after an explicit user action
-  (see [`docs/xbox-firmware.md`](docs/xbox-firmware.md)).
-- [**Nix** package manager](https://nixos.org/) in multi-user daemon mode.
-- **Secure Boot**: all out-of-tree modules are signed with a **local MOK**;
-  the public cert is enrolled into the firmware once
-- sensible desktop defaults (codecs, VA-API, etc.)
+## What Is Included
 
-> This image is not fully open source: it may contain proprietary NVIDIA
-> driver components. See [`NOTICE.md`](NOTICE.md) and
-> [`docs/legal.md`](docs/legal.md) for the licensing breakdown.
+- [Fedora Atomic Desktop / Kinoite](https://fedoraproject.org/atomic-desktops/kinoite/) style [KDE Plasma](https://kde.org/plasma-desktop/) desktop, remixed and rebranded as `bluecat`.
+- [NVIDIA](https://www.nvidia.com/) driver stack from [RPM Fusion nonfree](https://rpmfusion.org/), with kernel modules built during image creation and signed with the bluecat [MOK](docs/secure-boot.md) for Secure Boot. See [`docs/nvidia.md`](docs/nvidia.md).
+- [xone, the open-source Xbox controller driver](https://github.com/medusalix/xone), plus a bluecat activator that [can automatically install the Microsoft Xbox Wireless Adapter firmware locally when needed](docs/xbox-firmware.md).
+- [Flathub](https://flathub.org/) enabled system-wide on first boot, using the unfiltered Flathub catalog.
+- [Brave](https://brave.com/) installed from Flathub on first boot as the default browser replacement; the Firefox RPM from the base image is removed.
+- [Nix](https://nixos.org/) package manager in multi-user daemon mode.
+- [Distrobox](https://distrobox.it/) is installed, optimal for developers.
+- Gaming tools:
+  - [Steam](https://store.steampowered.com/about/)
+  - [Lutris](https://lutris.net/)
+  - [MangoHud](https://github.com/flightlessmango/MangoHud)
+  - [Gamescope](https://github.com/ValveSoftware/gamescope)
+  - [vkBasalt](https://github.com/DadSchoorse/vkBasalt)
+  - [Winetricks](https://github.com/Winetricks/winetricks).
+- [RustDesk](https://rustdesk.com/) for remote access.
+- Virtualization tools ([QEMU/KVM](https://www.qemu.org/), [virt-manager](https://virt-manager.org/), [libvirt](https://libvirt.org/) / installed but not enabled by default).
+- Desktop and hardware utilities such as codecs, VA-API-related pieces, [YubiKey](https://www.yubico.com/) / [FIDO2](https://fidoalliance.org/fido2/) tools, [rclone](https://rclone.org/), [dislocker](https://github.com/Aorimn/dislocker), `htop`, `mc` and common USB/PCI diagnostics.
 
-> [!IMPORTANT] 
-> This repo contains **only** source code, config, build
-> recipes, docs and scripts. **No** images, OSTree commits, ISO/OCI/RPM,
-> firmware or private keys are committed.
+## Installation
 
-### Image tags
+### Fresh Install From ISO
 
-`mise build:image` always builds the fixed local tag `:local` and never pushes it.
-`mise publish:image` re-tags that image and pushes:
-
-| mode              | tags pushed                                             |
-|-------------------|---------------------------------------------------------|
-| `release`         | `<major>.<YYYYMMDD>T<HHmm>` (UTC), `<major>`            |
-| `pr <number>`     | `pr-<number>` (only)                                    |
-
-In CI this is decided automatically (see below): push to `main` → `release`,
-a PR labeled `test image` → `pr <number>`.
-
-The tasks are self-contained file-tasks in `mise-tasks/` (they contain the
-full logic, no separate wrapper scripts). All versions/names are centralized in
-`dependencies.yaml`. The scripts that run *inside* the image build live in
-`image/setup/`.
-
-### Rolling ISO
-
-The rolling offline installer ISO is published here:
+Download the latest rolling installer ISO:
 
 - ISO: <https://download.bluecat.echocat.org/latest/bluecat.iso>
 - SHA256: <https://download.bluecat.echocat.org/latest/bluecat.iso.sha256>
 - MD5: <https://download.bluecat.echocat.org/latest/bluecat.iso.md5>
 
----
-
-## Secure Boot — procedure
-
-For the self-signed modules to load under active Secure Boot, the **public**
-MOK cert must be enrolled into the firmware once. bluecat prompts for this early
-in boot when Secure Boot is enabled, the key is not enrolled yet, and
-`/etc/pki/echocat/mok.der.ignore` does not exist. The prompt uses a `whiptail`
-dialog on `/dev/tty9` before the display manager starts. If `whiptail` is
-unavailable, the prompt is skipped as an error instead of falling back to plain
-text.
-
-The boot prompt offers three choices:
-
-1. register the key now and reboot into MokManager
-2. skip for this boot
-3. skip forever on this installation by creating
-   `/etc/pki/echocat/mok.der.ignore`
-
-When registering, bluecat asks for the one-time MokManager password in the
-`whiptail` dialog and passes a generated password hash to `mokutil`; `mokutil`
-does not prompt for the password itself.
-
-If skipped, NVIDIA-only systems can fail to reach a graphical login because
-`nouveau` is disabled and Secure Boot rejects the unsigned-by-firmware NVIDIA
-module until the MOK is enrolled.
-
-### Manual fallback: queue the public cert for enrollment
-
-On the target system (after installation `mok.der` lives at
-`/etc/pki/echocat/mok.der`, or use the file from `certs/`):
+Verify the download if possible:
 
 ```bash
-sudo mokutil --import /etc/pki/echocat/mok.der
+sha256sum -c bluecat.iso.sha256
 ```
 
-`mokutil` asks for a **one-time password** — remember it, it is requested on
-the next reboot.
+Write the ISO to a USB drive with a normal image writer, for example [Rufus](https://rufus.ie/) on Windows, [balenaEtcher](https://etcher.balena.io/) on macOS, or [Fedora Media Writer](https://fedoraproject.org/workstation/download) on Linux. Then boot it and follow the installer. The ISO embeds the bluecat OCI image as an offline payload, so the initial system deployment does not need to pull the image from the registry. After installation, the system is configured to receive future updates from the signed release image at `ghcr.io/echocat/bluecat:44`.
 
-### Reboot -> MOK Manager (blue shim screen)
+### Rebase An Existing Fedora Atomic System
 
-On the next boot **MokManager** appears:
-
-1. select *Enroll MOK*
-2. *Continue* -> *Yes*
-3. enter the password set in step 1
-4. reboot
-
-### Verify
-
-```bash
-mokutil --list-enrolled | grep -i "bluecat"
-# and after boot:
-modinfo nvidia | grep -i sig
-modinfo xone-gip | grep -i sig
-```
-
-> If the signing key is **regenerated**, repeat this procedure with the new
-> cert.
-
----
-
-## Install / switch (rebase)
-
-On an existing Fedora Atomic system (Kinoite):
+On an existing Fedora Atomic / Kinoite style system, use the signed rebase
+helper:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/echocat/bluecat/main/scripts/rebase-signed | sudo bash
 sudo systemctl reboot
 ```
 
-This installs the bluecat Cosign trust policy locally and rebases directly with
-`ostree-image-signed:registry:ghcr.io/echocat/bluecat:44`. Published images are
-signed with Cosign v3 using `--use-signing-config=false` and
-`--new-bundle-format=false` until rpm-ostree can verify Cosign's new bundle
-format natively.
-
-or (bootc-native, on bootc systems):
+On bootc-native systems, you can also switch directly:
 
 ```bash
 sudo bootc switch ghcr.io/echocat/bluecat:44
 sudo systemctl reboot
 ```
 
-The NVIDIA/xone modules only load under active Secure Boot **after** a
-successful MOK enrollment (see above).
+## First Boot And Automatic Setup
 
-> **Boot splash / LUKS branding:** the boot splash and the LUKS unlock prompt
-> are rendered from the *initramfs*, not from `/usr`. The image build rebuilds
-> the shipped initramfs after applying the bluecat Plymouth assets, explicitly
-> keeping dracut's OSTree module enabled. A **fresh ISO install** therefore
-> shows the bluecat splash on first boot. When **rebasing onto an existing
-> Fedora system**, the old initramfs may be kept until it is regenerated; run
-> `sudo rpm-ostree initramfs --enable` to rebuild it from the bluecat
-> deployment. The running system (KDE "About", shutdown splash) is branded
-> regardless.
+The image enables several setup tasks automatically:
 
----
+1. Secure Boot MOK enrollment prompt, only when UEFI Secure Boot is enabled and the bluecat MOK certificate is not enrolled yet.
+2. Flathub system remote setup.
+3. Brave Flatpak installation from Flathub. If the network is unavailable, this is retried later.
+4. Nix writable directory setup and `nix-daemon` activation.
+5. NVIDIA and xone module autoload configuration.
 
-## xone firmware (proprietary, not in the image)
+> [!IMPORTANT]
+> If Secure Boot is enabled, complete the blue MokManager enrollment after the prompt asks you to reboot. Without MOK enrollment, Secure Boot can reject the NVIDIA and xone modules; NVIDIA-only systems may fail to reach a graphical login because `nouveau` and `nova_core` are blacklisted for the proprietary NVIDIA driver stack.
+> 
+> See [`docs/secure-boot.md`](docs/secure-boot.md) for the full Secure Boot / MOK procedure and manual fallback commands.
 
-The xone **driver** is included; the Microsoft wireless dongle **firmware** is
-proprietary and is **not** shipped, **not** bundled and **not** downloaded
-during the build. The image ships only a local opt-in activator. On the target
-system (only needed for the USB wireless dongle, not for wired/Bluetooth):
+## Optional Feature Activation
+
+### Xbox Wireless Adapter Firmware
+
+The `xone` driver is included, but the proprietary Microsoft Xbox Wireless Adapter firmware is not shipped, bundled or downloaded during the image build. It is only needed for the USB wireless dongle, not for wired controllers or Bluetooth.
+
+To enable it locally on an installed system:
 
 ```bash
 sudo enable-xone-firmware
 ```
 
-The same flow is available from the desktop application menu as **Enable Xbox
-Wireless Adapter Firmware**; that launcher requests root privileges via
-`pkexec` and runs the activator in a terminal.
+The same flow is available from the desktop application menu as **Enable Xbox Wireless Adapter Firmware**. The activator shows a disclaimer, requires explicit confirmation, creates a local systemd unit, downloads the firmware from the pinned Microsoft / Windows Update URL, and verifies the extracted firmware against a pinned SHA256 hash.
 
-This shows a disclaimer and requires explicit confirmation through a `whiptail`
-dialog, with a text fallback that requires typing exactly `yes`; only then does
-it set up a local systemd unit that downloads the firmware from Microsoft and
-verifies the extracted firmware against a pinned SHA256 hash. See
-[`docs/xbox-firmware.md`](docs/xbox-firmware.md) for the full flow and how to
-undo it.
+Details and undo steps: [`docs/xbox-firmware.md`](docs/xbox-firmware.md).
 
----
+### Virtualization Services
 
-## License & legal
+Virtualization packages are installed, but libvirt services are not enabled by default. Enable the services you need on the installed system.
 
-The files in this repository authored by this project are licensed under the
-**MIT** license (see [`LICENSE`](LICENSE)). This license applies **only** to
-the project's own files — **not** to any third-party software integrated at
-build time or shipped in the image (Fedora base, RPM Fusion packages, the
-proprietary NVIDIA driver, the xone driver, or the Microsoft firmware).
+## License And Legal Notes
 
-See:
+The files authored by this project are licensed under the MIT license, see [`LICENSE`](LICENSE). That license applies only to this repository's own build recipes, scripts, configuration and documentation.
 
-- [`NOTICE.md`](NOTICE.md) — third-party attributions
-- [`docs/legal.md`](docs/legal.md) — component/licensing boundaries
-- [`docs/nvidia.md`](docs/nvidia.md) — proprietary NVIDIA components
-- [`docs/xbox-firmware.md`](docs/xbox-firmware.md) — Xbox firmware (opt-in)
+It does **not** apply to third-party software integrated into or installed by the resulting system, including Fedora packages, RPM Fusion packages, proprietary NVIDIA components, the xone driver, optional Microsoft firmware, Flathub apps, Brave, Steam, RustDesk, Nix, Nushell or other upstream components. Each component is governed by its own license and terms.
 
----
+Important references:
 
-## More topics
-- [Development](DEVELOPMENT.md)
-- [Third-party attributions](NOTICE.md)
+- [`NOTICE.md`](NOTICE.md) - third-party notices and attributions
+- [`docs/legal.md`](docs/legal.md) - component and licensing boundaries
+- [`docs/nvidia.md`](docs/nvidia.md) - NVIDIA component notes
+- [`docs/xbox-firmware.md`](docs/xbox-firmware.md) - Xbox firmware opt-in flow
+- [`docs/secure-boot.md`](docs/secure-boot.md) - MOK enrollment and verification
+
+## Development
+
+Developer documentation, local build commands, CI behavior, image tags and publishing details live in [`DEVELOPMENT.md`](DEVELOPMENT.md).

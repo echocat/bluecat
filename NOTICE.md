@@ -74,3 +74,27 @@ boot**.
   Brave.
 
 See [`docs/legal.md`](docs/legal.md) for details.
+
+## Gaming applications and tools
+
+The image installs gaming-related software such as **Steam**, **Lutris**,
+MangoHud, Gamescope, vkBasalt and Winetricks from Fedora, RPM Fusion or upstream
+sources.
+
+- Steam is proprietary Valve software and is governed by Valve's terms.
+- Other gaming components are governed by their own upstream or package terms.
+- This project's MIT license does **not** apply to these third-party
+  applications and tools.
+
+## RustDesk
+
+The image installs **RustDesk** from the upstream GitHub RPM release. RustDesk is
+governed by its own upstream license and terms. This project's MIT license does
+**not** apply to RustDesk.
+
+## Nix and Nushell
+
+The image installs **Nix** from Fedora packages and **Nushell** from the pinned
+upstream GitHub release tarball. Both are third-party components governed by
+their own upstream licenses. This project's MIT license does **not** apply to
+them.

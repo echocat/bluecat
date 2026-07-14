@@ -48,5 +48,14 @@ echo "=== rpm-ostree rebase..."
 echo "=== Using ostree-image-signed:registry:${IMAGE_REF}"
 rpm-ostree rebase "ostree-image-signed:registry:${IMAGE_REF}"
 
+echo "=== Enabling local initramfs regeneration for early boot branding..."
+if rpm-ostree initramfs --enable; then
+  echo "=== Initramfs regeneration enabled."
+else
+  echo "=== WARNING: failed to enable initramfs regeneration; rebase remains staged." >&2
+  echo "=== WARNING: if early boot branding stays unchanged after reboot, run:" >&2
+  echo "=== WARNING:   sudo rpm-ostree initramfs --enable" >&2
+fi
+
 echo
 echo "=== Rebase staged. Reboot with: sudo systemctl reboot"

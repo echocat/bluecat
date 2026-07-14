@@ -15,6 +15,9 @@ project's intent and the boundaries between the components.
 | xone driver                    | medusalix/xone                           | GPL-2.0                                   | No                             |
 | Microsoft Xbox firmware        | Microsoft (NOT shipped by this project)  | Microsoft terms                           | No                             |
 | Flathub apps (e.g. Brave)      | third parties (NOT shipped, installed on first boot) | per-app (see each app on Flathub) | No                             |
+| Gaming applications and tools  | Fedora, RPM Fusion and upstream projects | per-package / upstream terms              | No                             |
+| RustDesk                       | RustDesk upstream GitHub RPM release     | RustDesk / upstream terms                 | No                             |
+| Nix and Nushell                | Fedora packages and upstream releases    | per-component upstream licenses           | No                             |
 
 ## What this project does and does not do
 
@@ -28,7 +31,8 @@ project's intent and the boundaries between the components.
   **unofficial** Fedora-Atomic-based image and is **not affiliated with,
   endorsed by, or produced by the Fedora Project or Red Hat, Inc.**
 - Users must comply with the terms of each third-party component
-  (Fedora, RPM Fusion, NVIDIA, xone, Microsoft, Flathub apps) they use.
+  (Fedora, RPM Fusion, NVIDIA, xone, Microsoft, Flathub apps, Brave, Steam,
+  RustDesk, Nix, Nushell and other upstream packages) they use.
 
 ## Flatpak / Flathub
 
@@ -48,6 +52,19 @@ project's intent and the boundaries between the components.
 - The Fedora Flatpak remote (`registry.fedoraproject.org`) remains available but
   is deprioritized so that Flathub is preferred for applications available from
   both.
+
+## Other third-party applications and tools
+
+- The image installs gaming-related software such as **Steam**, **Lutris**,
+  MangoHud, Gamescope, vkBasalt and Winetricks. These components come from
+  Fedora, RPM Fusion or their upstream projects and are governed by their own
+  licenses and terms. Steam is proprietary Valve software.
+- **RustDesk** is installed from the upstream GitHub RPM release and is governed
+  by RustDesk's own upstream license and terms.
+- **Nix** is installed from Fedora packages in multi-user daemon mode.
+- **Nushell** is installed from the pinned upstream GitHub release tarball.
+
+This project's MIT license does not apply to those third-party components.
 
 ## Fedora trademarks (Remix note)
 
