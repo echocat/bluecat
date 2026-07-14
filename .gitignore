@@ -52,6 +52,8 @@ xow_dongle.bin
 # --- Build-Output ------------------------------------------------------------
 output/
 *.log
+site/.hugo_build.lock
+site/public
 
 # --- Gerenderte Kickstart (aus iso/bluecat.ks.in erzeugt) --------------------
 iso/bluecat.ks

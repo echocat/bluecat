@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="{{ site.LanguageCode }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#006fb3">
+    <meta
+      name="description"
+      content="bluecat is an unofficial Fedora Atomic / Kinoite based bootc desktop image with KDE Plasma, NVIDIA support, gaming tools and an offline installer ISO."
+    >
+    <title>{{ site.Title }} | Atomic KDE Desktop Image</title>
+    <link rel="icon" href="{{ "assets/bluecat-logo-symbol.svg" | relURL }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ "styles.css" | relURL }}">
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero__glow hero__glow--one"></div>
+        <div class="hero__glow hero__glow--two"></div>
+        <nav class="nav" aria-label="Main navigation">
+          <a class="brand" href="{{ "" | relURL }}" aria-label="bluecat home">
+            <img src="{{ "assets/bluecat-logo-white.svg" | relURL }}" alt="bluecat" width="184" height="40">
+          </a>
+          <div class="nav__links">
+            <a href="#features">Features</a>
+            <a href="#install">Install</a>
+            <a href="https://github.com/echocat/bluecat">GitHub</a>
+          </div>
+        </nav>
+
+        <div class="hero__content">
+          <p class="eyebrow">bootc + KDE Plasma + Fedora Atomic roots</p>
+          <h1 id="hero-title">A sharp atomic desktop image for real hardware.</h1>
+          <p class="hero__lead">
+            bluecat is an unofficial Kinoite-style desktop image with signed NVIDIA modules,
+            gaming defaults, container tooling and a rolling offline installer ISO.
+          </p>
+          <div class="actions" aria-label="Primary actions">
+            <a class="button button--primary" href="https://download.bluecat.echocat.org/latest/bluecat.iso">Download ISO</a>
+            <a class="button button--ghost" href="https://github.com/echocat/bluecat">View Source</a>
+          </div>
+          <div class="hero__meta" aria-label="Project facts">
+            <span>OCI image: <strong>ghcr.io/echocat/bluecat</strong></span>
+            <span>Current stream: <strong>Fedora 44</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="strip" aria-label="Download links">
+        <a href="https://download.bluecat.echocat.org/latest/bluecat.iso">ISO</a>
+        <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.sha256">SHA256</a>
+        <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.md5">MD5</a>
+        <a href="https://github.com/echocat/bluecat/pkgs/container/bluecat">GHCR Package</a>
+      </section>
+
+      <section id="features" class="section" aria-labelledby="features-title">
+        <div class="section__heading">
+          <p class="eyebrow">What ships</p>
+          <h2 id="features-title">A desktop image with the boring parts already handled.</h2>
+        </div>
+        <div class="grid">
+          <article class="card card--bright">
+            <span class="card__index">01</span>
+            <h3>Atomic KDE base</h3>
+            <p>Kinoite-style immutable desktop, rebranded as bluecat and delivered as a bootc OCI image.</p>
+          </article>
+          <article class="card">
+            <span class="card__index">02</span>
+            <h3>NVIDIA ready</h3>
+            <p>RPM Fusion NVIDIA stack is built into the image and signed with the bluecat MOK for Secure Boot workflows.</p>
+          </article>
+          <article class="card">
+            <span class="card__index">03</span>
+            <h3>Gaming defaults</h3>
+            <p>Steam, Lutris, MangoHud, Gamescope, vkBasalt and Winetricks are included for a practical gaming setup.</p>
+          </article>
+          <article class="card">
+            <span class="card__index">04</span>
+            <h3>Developer tools</h3>
+            <p>Distrobox, Nix, virtualization packages, diagnostics and common desktop utilities are ready after install.</p>
+          </article>
+          <article class="card">
+            <span class="card__index">05</span>
+            <h3>Offline installer</h3>
+            <p>The rolling ISO embeds the local OCI payload, so the initial deployment does not need a registry pull.</p>
+          </article>
+          <article class="card card--outline">
+            <span class="card__index">06</span>
+            <h3>Explicit opt-ins</h3>
+            <p>Xbox Wireless Adapter firmware is never bundled; bluecat only downloads it after local user confirmation.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="install" class="section section--split" aria-labelledby="install-title">
+        <div>
+          <p class="eyebrow">Install</p>
+          <h2 id="install-title">Fresh ISO install or signed rebase.</h2>
+          <p>
+            Use the ISO for a clean install, or rebase an existing Fedora Atomic / Kinoite-style system
+            to the signed bluecat stream.
+          </p>
+        </div>
+        <div class="terminal" aria-label="Install commands">
+          <div class="terminal__bar"><span></span><span></span><span></span></div>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/echocat/bluecat/main/scripts/rebase-signed | sudo bash
+sudo systemctl reboot
+
+# bootc-native systems
+sudo bootc switch ghcr.io/echocat/bluecat:44</code></pre>
+        </div>
+      </section>
+
+      <section class="section note" aria-labelledby="legal-title">
+        <h2 id="legal-title">Unofficial remix, clear boundaries.</h2>
+        <p>
+          bluecat is not affiliated with, endorsed by, or produced by the Fedora Project or Red Hat, Inc.
+          It may include proprietary NVIDIA components from RPM Fusion nonfree and can optionally download
+          Microsoft Xbox Wireless Adapter firmware after explicit local user consent.
+        </p>
+        <a href="https://github.com/echocat/bluecat/blob/main/docs/legal.md">Read legal notes</a>
+      </section>
+    </main>
+  </body>
+</html>

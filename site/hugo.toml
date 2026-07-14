@@ -1,0 +1,15 @@
+baseURL = "https://bluecat.echocat.org/"
+languageCode = "en"
+title = "bluecat"
+disableKinds = ["taxonomy", "term", "RSS", "sitemap"]
+
+[module]
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "../assets/branding"
+    target = "static/assets"

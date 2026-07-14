@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Build static GitHub Pages site"
+#MISE dir="{{config_root}}"
+set -euo pipefail
+
+site_output="output/site"
+
+rm -rf "${site_output}"
+hugo --source site --destination "../${site_output}" --minify
+
+echo "site built at ${site_output}"
