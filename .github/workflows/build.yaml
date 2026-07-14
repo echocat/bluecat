@@ -87,6 +87,15 @@ jobs:
           echo "==> Disk after cleanup"
           df -h
 
+      - name: Show container tool versions
+        run: |
+          set -euo pipefail
+
+          podman --version
+          buildah --version || true
+          skopeo --version || true
+          podman build --help | grep -E 'source-date-epoch|rewrite-timestamp|timestamp' || true
+
       # Build all artifacts locally first. Publishing only happens after the ISO
       # build has succeeded, so a broken ISO never follows a pushed release tag.
       - name: Build Image
