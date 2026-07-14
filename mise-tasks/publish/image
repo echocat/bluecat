@@ -354,7 +354,7 @@ case "${MODE}" in
     push_image_tag "${TS_TAG}"
     copy_image_tag "${TS_TAG}" "${FEDORA_MAJOR_VERSION}"
     DIGEST="$(image_digest_for_tag "${TS_TAG}")"
-    sign_image_ref "${REPO}:${TS_TAG}"
+    sign_image_ref "${REPO}@${DIGEST}"
     alias_signature_tag "${DIGEST}" "${TS_SIG_TAG}"
     cleanup_release_tags
     ;;
@@ -367,7 +367,8 @@ case "${MODE}" in
     echo "==> pr: pushing pr-${NUMBER} only"
     PR_TAG="pr-${NUMBER}"
     push_image_tag "${PR_TAG}"
-    sign_image_ref "${REPO}:${PR_TAG}"
+    DIGEST="$(image_digest_for_tag "${PR_TAG}")"
+    sign_image_ref "${REPO}@${DIGEST}"
     ;;
 
   test)
@@ -388,7 +389,7 @@ case "${MODE}" in
     push_image_tag "${TEST_TS_TAG}"
     copy_image_tag "${TEST_TS_TAG}" "${TEST_TAG}"
     DIGEST="$(image_digest_for_tag "${TEST_TS_TAG}")"
-    sign_image_ref "${REPO}:${TEST_TS_TAG}"
+    sign_image_ref "${REPO}@${DIGEST}"
     alias_signature_tag "${DIGEST}" "${TEST_TS_SIG_TAG}"
     ;;
 
