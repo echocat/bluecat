@@ -63,38 +63,96 @@
           <article class="card card--bright">
             <span class="card__index">01</span>
             <h3>Atomic KDE base</h3>
-            <p>Kinoite-style immutable desktop, rebranded as bluecat and delivered as a bootc OCI image.</p>
+            <p>
+              Kinoite-style
+              immutable KDE Plasma desktop,
+              rebranded as bluecat and delivered as a <a href="https://bootc-dev.github.io/bootc/">bootc</a> <a href="https://opencontainers.org/">OCI image</a>.
+            </p>
+            <div class="card__links" aria-label="Atomic KDE links">
+              <a href="https://fedoraproject.org/atomic-desktops/kinoite/">Fedora Atomic / Kinoite</a>
+              <a href="https://kde.org/plasma-desktop/">KDE Plasma</a>
+            </div>
           </article>
           <article class="card">
             <span class="card__index">02</span>
             <h3>NVIDIA ready</h3>
-            <p>RPM Fusion NVIDIA stack is built into the image and signed with the bluecat MOK for Secure Boot workflows.</p>
+            <p>
+              NVIDIA stack from RPM Fusion nonfree is built into the image
+              and <a href="https://github.com/echocat/bluecat/blob/main/docs/secure-boot.md">signed with the bluecat MOK for Secure Boot workflows</a>.
+            </p>
+            <div class="card__links" aria-label="NVIDIA links">
+              <a href="https://github.com/echocat/bluecat/blob/main/docs/nvidia.md">NVIDIA (details)</a>
+              <a href="https://rpmfusion.org/">RPM Fusion</a>
+            </div>
           </article>
           <article class="card">
             <span class="card__index">03</span>
             <h3>Gaming defaults</h3>
-            <p>Steam, Lutris, MangoHud, Gamescope, vkBasalt and Winetricks are included for a practical gaming setup.</p>
+            <p>
+              Steam, Lutris, MangoHud, Gamescope, vkBasalt and Winetricks are included
+              for a practical gaming setup.
+            </p>
+            <div class="card__links" aria-label="Gaming links">
+              <a href="https://store.steampowered.com/about/">Steam</a>
+              <a href="https://lutris.net/">Lutris</a>
+              <a href="https://github.com/flightlessmango/MangoHud">MangoHud</a>
+              <a href="https://github.com/ValveSoftware/gamescope">Gamescope</a>
+              <a href="https://github.com/DadSchoorse/vkBasalt">vkBasalt</a>
+              <a href="https://github.com/Winetricks/winetricks">Winetricks</a>
+            </div>
           </article>
           <article class="card">
             <span class="card__index">04</span>
             <h3>Developer tools</h3>
-            <p>Distrobox, Nix, virtualization packages, diagnostics and common desktop utilities are ready after install.</p>
+            <p>
+              Distrobox, Nix, Flathub, Brave, RustDesk, virtualization packages,
+              diagnostics and common desktop utilities are ready after install.
+            </p>
+            <div class="card__links" aria-label="Developer and desktop links">
+              <a href="https://flathub.org/">Flathub</a>
+              <a href="https://brave.com/">Brave</a>
+              <a href="https://nixos.org/">Nix</a>
+              <a href="https://distrobox.it/">Distrobox</a>
+              <a href="https://rustdesk.com/">RustDesk</a>
+              <a href="https://www.qemu.org/">QEMU/KVM</a>
+              <a href="https://virt-manager.org/">virt-manager</a>
+              <a href="https://libvirt.org/">libvirt</a>
+              <a href="https://www.yubico.com/">YubiKey</a>
+              <a href="https://fidoalliance.org/fido2/">FIDO2</a>
+              <a href="https://rclone.org/">rclone</a>
+              <a href="https://github.com/Aorimn/dislocker">dislocker</a>
+            </div>
           </article>
           <article class="card">
             <span class="card__index">05</span>
             <h3>Offline installer</h3>
-            <p>The rolling ISO embeds the local OCI payload, so the initial deployment does not need a registry pull.</p>
+            <p>
+              The rolling ISO embeds the local OCI payload, so the initial deployment does not need a registry pull.
+              See the <a href="#install">install section</a> for USB imaging details.
+            </p>
+            <div class="card__links" aria-label="Installer links">
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso">ISO</a>
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.sha256">SHA256</a>
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.md5">MD5</a>
+            </div>
           </article>
           <article class="card card--outline">
             <span class="card__index">06</span>
             <h3>Explicit opt-ins</h3>
-            <p>Xbox Wireless Adapter firmware is never bundled; bluecat only downloads it after local user confirmation.</p>
+            <p>
+              xone driver is included,
+              but Xbox Wireless Adapter firmware is never bundled;
+              <a href="https://github.com/echocat/bluecat/blob/main/docs/xbox-firmware.md">bluecat only downloads it after local user confirmation</a>.
+            </p>
+            <div class="card__links" aria-label="Opt-in links">
+              <a href="https://github.com/medusalix/xone">xone</a>
+            </div>
           </article>
         </div>
       </section>
 
-      <section id="install" class="section section--split" aria-labelledby="install-title">
-        <div>
+      <section id="install" class="section install" aria-labelledby="install-title">
+        <div class="section__heading">
           <p class="eyebrow">Install</p>
           <h2 id="install-title">Fresh ISO install or signed rebase.</h2>
           <p>
@@ -102,13 +160,49 @@
             to the signed bluecat stream.
           </p>
         </div>
-        <div class="terminal" aria-label="Install commands">
-          <div class="terminal__bar"><span></span><span></span><span></span></div>
-          <pre><code>curl -fsSL https://raw.githubusercontent.com/echocat/bluecat/main/scripts/rebase-signed | sudo bash
-sudo systemctl reboot
+        <div class="install__grid">
+          <article class="install__panel">
+            <h3>Install from ISO</h3>
+            <p>
+              Download the latest rolling installer ISO, verify it with the SHA256 checksum if possible,
+              then write it to a USB drive with a normal image writer such as
+              <a href="https://rufus.ie/">Rufus</a> on Windows,
+              <a href="https://etcher.balena.io/">balenaEtcher</a> on macOS or
+              <a href="https://fedoraproject.org/workstation/download">Fedora Media Writer</a> on Linux.
+              Boot from the USB drive and follow the installer.
+            </p>
+            <p>
+              The ISO embeds the bluecat OCI image as an offline payload, so the initial system deployment
+              does not need to pull the image from the registry. After installation, the system receives
+              updates from <code>ghcr.io/echocat/bluecat:44</code>.
+            </p>
+            <div class="card__links" aria-label="ISO download links">
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso">ISO</a>
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.sha256">SHA256</a>
+              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.md5">MD5</a>
+            </div>
+          </article>
 
-# bootc-native systems
-sudo bootc switch ghcr.io/echocat/bluecat:44</code></pre>
+          <article class="install__panel">
+            <h3>Rebase an existing system</h3>
+            <p>
+              Existing Fedora Atomic / Kinoite-style systems can use the signed rebase helper.
+              Bootc-native systems can switch directly to the bluecat release image.
+            </p>
+
+            <div class="terminal" aria-label="Signed rebase script commands">
+              <div class="terminal__bar"><span></span><span></span><span></span></div>
+              <pre><code>curl -fsSL https://raw.githubusercontent.com/echocat/bluecat/main/scripts/rebase-signed | sudo bash
+sudo systemctl reboot
+</code></pre>
+            </div>
+
+            <div class="terminal" aria-label="Bootc-native switch commands">
+              <div class="terminal__bar"><span></span><span></span><span></span></div>
+              <pre><code>sudo bootc switch ghcr.io/echocat/bluecat:44
+sudo systemctl reboot</code></pre>
+            </div>
+          </article>
         </div>
       </section>
 
