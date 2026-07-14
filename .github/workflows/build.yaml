@@ -19,13 +19,6 @@ jobs:
   build-and-push:
     name: "Build and Push/Publish"
     runs-on: ubuntu-latest
-    # Only run for: push/schedule on main or the "test image" label on a PR.
-    # Any other labeled event is ignored.
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'test image')
-
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -109,7 +102,7 @@ jobs:
         run: mise publish:image release
 
       - name: Push (pr test image)
-        if: github.event_name == 'pull_request'
+        if: (github.event_name == 'pull_request' && github.event.label.name == 'test image')
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
