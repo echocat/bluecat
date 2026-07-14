@@ -1,8 +1,8 @@
 # echocat branding assets
 
 This directory holds the **echocat / bluecat** branding: the source artwork and
-the master file it is derived from. The image assets under `image/rootfs/` are
-**generated** from these sources by the `mise branding` task.
+the master file it is derived from. The image assets under `image/rootfs/`, `iso/`
+and `site/static/` are **generated** from these sources by the `mise branding` task.
 
 ## Source files (edit these)
 
@@ -32,6 +32,7 @@ into `image/rootfs/`, which the build copies into the image:
 | `usr/share/pixmaps/bluecat-logo.svg` + `.png`                      | full logo pixmap                         |
 | `usr/share/bluecat/branding/plymouth-watermark.png`                | Plymouth boot splash (staged; see below) |
 | `usr/share/sddm/themes/bluecat/logo.png` + `symbol.png`            | SDDM login assets                        |
+| `site/static/social-card.png`                                      | website social sharing preview image     |
 
 The generated files are **committed** to the repository. Re-run `mise branding`
 and commit the result whenever a source SVG changes.

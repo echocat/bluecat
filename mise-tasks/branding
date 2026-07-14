@@ -1,5 +1,5 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write
-//MISE description="Render the echocat branding assets from SVG into image/rootfs/ and iso/"
+//MISE description="Render the echocat branding assets from SVG into image/rootfs/, iso/ and site/"
 //MISE dir="{{config_root}}"
 // ===========================================================================
 // Renders the bluecat / echocat branding from the source SVGs in
@@ -14,6 +14,7 @@
 // Re-run this whenever the source SVGs in assets/branding/ change.
 // ===========================================================================
 import { initWasm, Resvg } from "npm:@resvg/resvg-wasm@2.6.2";
+import TextToSVG from "npm:text-to-svg@3.1.5";
 
 // --- sources ---------------------------------------------------------------
 const SRC_DIR = "assets/branding";
@@ -27,6 +28,7 @@ const PIXMAPS = `${OUT}/usr/share/pixmaps`;
 const HICOLOR = `${OUT}/usr/share/icons/hicolor`;
 const SDDM_ASSETS = `${OUT}/usr/share/sddm/themes/bluecat`;
 const ISO_ANACONDA_ROOTFS = "iso/product.img";
+const SITE_STATIC = "site/static";
 // The Plymouth watermark must NOT be shipped straight into the rpm-managed
 // theme dir (/usr/share/plymouth/themes/spinner): a later `rpm-ostree install`
 // re-checks out that package directory and drops non-packaged files. We stage
@@ -42,6 +44,7 @@ const ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256];
 // The resvg wasm module. --allow-net is used to fetch it (accepted trade-off);
 // it is cached by Deno after the first run.
 const WASM_URL = "https://esm.sh/@resvg/resvg-wasm@2.6.2/index_bg.wasm";
+const SOCIAL_TEXT = TextToSVG.loadSync();
 
 // ---------------------------------------------------------------------------
 async function ensureDir(path: string): Promise<void> {
@@ -62,6 +65,53 @@ async function readSvg(path: string): Promise<string> {
 function renderPng(svg: string, width: number): Uint8Array {
   const resvg = new Resvg(svg, { fitTo: { mode: "width", value: width } });
   return resvg.render().asPng();
+}
+
+function svgBody(svg: string): string {
+  const match = svg.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
+  if (match === null) {
+    console.error("ERROR: source SVG has no <svg> root");
+    Deno.exit(1);
+  }
+  return match[1];
+}
+
+function textPath(text: string, x: number, y: number, fontSize: number, fill: string): string {
+  return SOCIAL_TEXT.getPath(text, {
+    x,
+    y,
+    fontSize,
+    attributes: { fill },
+  });
+}
+
+function socialCardSvg(symbolSvg: string): string {
+  return `
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#040711"/>
+      <stop offset="0.48" stop-color="#081a2b"/>
+      <stop offset="1" stop-color="#03060d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.15" r="0.85">
+      <stop offset="0" stop-color="#006fb3" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#006fb3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g opacity="0.08" fill="#fff" transform="translate(740 86) scale(2.46)">
+    ${svgBody(symbolSvg)}
+  </g>
+  ${textPath("BOOTC + KDE PLASMA + FEDORA ATOMIC ROOTS", 72, 104, 24, "#82e7ff")}
+  ${textPath("bluecat", 72, 238, 108, "#edf8ff")}
+  ${textPath("Atomic KDE Desktop", 76, 332, 66, "#edf8ff")}
+  ${textPath("An unofficial Kinoite-style bootc image with NVIDIA,", 76, 408, 30, "#d5ecfa")}
+  ${textPath("gaming defaults and a rolling offline installer ISO.", 76, 452, 30, "#d5ecfa")}
+  <rect x="72" y="520" width="360" height="56" rx="28" fill="#82e7ff"/>
+  ${textPath("bluecat.echocat.org", 104, 557, 24, "#001521")}
+</svg>`;
 }
 
 async function writeFile(path: string, data: Uint8Array): Promise<void> {
@@ -129,6 +179,10 @@ await writeFile(
   renderPng(whiteSvg, 146),
 );
 
+// --- 6. Website social sharing card -----------------------------------------
+console.log("==> Website social sharing card");
+await writeFile(`${SITE_STATIC}/social-card.png`, renderPng(socialCardSvg(symbolSvg), 1200));
+
 console.log();
-console.log("==> Branding assets generated under image/rootfs/ and iso/.");
+console.log("==> Branding assets generated under image/rootfs/, iso/ and site/.");
 console.log("    Review + commit the generated files.");
