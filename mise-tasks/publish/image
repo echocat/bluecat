@@ -109,11 +109,20 @@ sign_image_ref() {
 
 push_image_tag() {
   local tag="$1"
+  local -a compression_args=(
+    --dest-compress-format=zstd
+    --dest-compress-level=19
+  )
+
+  if skopeo copy --help | grep -q -- '--dest-force-compress-format'; then
+    compression_args+=(--dest-force-compress-format)
+  else
+    echo "    WARNING: skopeo lacks --dest-force-compress-format; using best-effort zstd compression." >&2
+  fi
+
   echo "==> Push ${CHUNKED_OCI}:${CHUNKED_OCI_REF} -> ${REPO}:${tag} (zstd)"
   skopeo copy \
-    --dest-compress-format=zstd \
-    --dest-compress-level=19 \
-    --dest-force-compress-format \
+    "${compression_args[@]}" \
     "oci:${CHUNKED_OCI}:${CHUNKED_OCI_REF}" \
     "docker://${REPO}:${tag}"
 }
