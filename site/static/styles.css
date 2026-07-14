@@ -118,8 +118,22 @@ main {
 }
 
 .hero__content {
+  position: relative;
   align-self: center;
   padding-top: 72px;
+}
+
+.hero__content::before {
+  position: absolute;
+  right: clamp(-180px, -8vw, -42px);
+  bottom: clamp(-80px, -6vw, -28px);
+  z-index: -1;
+  width: clamp(200px, 32vw, 420px);
+  aspect-ratio: 1;
+  content: "";
+  background: rgb(53 185 255 / 4%);
+  filter: drop-shadow(0 0 44px rgb(255 255 255 / 18%));
+  mask: url("assets/bluecat-logo-symbol.svg") center / contain no-repeat;
 }
 
 .eyebrow {
