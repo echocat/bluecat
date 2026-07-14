@@ -118,7 +118,6 @@ main {
 
 .hero__content {
   align-self: center;
-  max-width: 900px;
   padding-top: 72px;
 }
 
@@ -139,11 +138,10 @@ p {
 }
 
 h1 {
-  max-width: 980px;
   margin-bottom: 24px;
   font-size: clamp(3.4rem, 10vw, 8.8rem);
-  line-height: 0.88;
-  letter-spacing: -0.08em;
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 h2 {
