@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "==> Display manager: switching default to SDDM"
-rpm-ostree install -y \
+dnf5 install -y \
   sddm \
   sddm-x11 \
   sddm-breeze

@@ -4,10 +4,10 @@ set -euo pipefail
 echo "==> Installing pre-built kmod-nvidia from stage 1"
 # Installing the stage 1 kmod package satisfies `nvidia-kmod`, so rpm-ostree
 # does not pull akmod-nvidia and run its root-only build scriptlets here.
-rpm-ostree install -y /tmp/bluecat-rpms/kmod-nvidia-*.rpm
+dnf5 install -y /tmp/bluecat-rpms/kmod-nvidia-*.rpm
 
 echo "==> NVIDIA userspace packages"
-rpm-ostree install -y \
+dnf5 install -y \
   xorg-x11-drv-nvidia \
   xorg-x11-drv-nvidia-cuda \
   libva-nvidia-driver \

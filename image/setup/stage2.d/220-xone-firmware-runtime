@@ -5,4 +5,4 @@ set -euo pipefail
 # the build. cabextract is only needed by /usr/bin/enable-xone-firmware after
 # the user explicitly opts in at runtime.
 echo "==> Installing cabextract (needed by enable-xone-firmware at runtime)"
-rpm-ostree install -y cabextract
+dnf5 install -y cabextract

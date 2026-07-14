@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+#MISE description="Build the chunked OCI image from the local image"
+#MISE dir="{{config_root}}"
+# =============================================================================
+# Builds a chunked bootc OCI image from the already-built local image.
+#
+# The source image :local is an intermediate; the output is the chunked OCI
+# layout output/bluecat.oci. build:iso and publish:image consume that layout
+# directly. Large temporary OCI/storage artifacts are removed as soon as they
+# are no longer needed.
+#
+# The rechunk step follows the Bazzite-style model: it runs rootful and directly
+# against rootful containers-storage. Do not use a separate vfs storage here;
+# vfs duplicates layer contents aggressively and can explode disk usage.
+# =============================================================================
+set -euo pipefail
+
+if ! command -v podman >/dev/null 2>&1; then
+  echo "ERROR: podman not found." >&2
+  exit 1
+fi
+if [[ "${EUID}" -ne 0 ]]; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo_cmd=(sudo)
+  else
+    echo "ERROR: rootful rechunking needs sudo; sudo not found." >&2
+    exit 1
+  fi
+else
+  sudo_cmd=()
+fi
+
+OUTPUT_DIR="output"
+CHUNKED_OCI="${OUTPUT_DIR}/bluecat.oci"
+CHUNKED_POLICY="${OUTPUT_DIR}/bluecat.chunked-policy.json"
+CHUNKED_MAX_LAYERS="${CHUNKED_MAX_LAYERS:-127}"
+KEEP_UNCHUNKED_IMAGE="${KEEP_UNCHUNKED_IMAGE:-0}"
+CHUNKED_PRUNE="${CHUNKED_PRUNE:-1}"
+
+REPO="${IMAGE_REGISTRY}/${IMAGE_NAME}"
+LOCAL_REF="${REPO}:${LOCAL_IMAGE_TAG}"
+LOCAL_CHUNKED_REF="${REPO}:${LOCAL_CHUNKED_IMAGE_TAG}"
+CHUNKED_OCI_REF="bluecat:${LOCAL_CHUNKED_IMAGE_TAG}"
+RECHUNK_SOURCE_REF="localhost/bluecat-rechunk-source:${LOCAL_IMAGE_TAG}"
+RECHUNK_OUTPUT_REF="localhost/bluecat-rechunk-output:${LOCAL_CHUNKED_IMAGE_TAG}"
+
+if ! podman image exists "${LOCAL_REF}" 2>/dev/null; then
+  echo "ERROR: ${LOCAL_REF} not found. Run \`mise build:image\` first." >&2
+  exit 1
+fi
+
+mkdir -p "${OUTPUT_DIR}"
+
+cleanup() {
+  local status=$?
+
+  podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+  "${sudo_cmd[@]}" podman rmi "${RECHUNK_SOURCE_REF}" "${RECHUNK_OUTPUT_REF}" >/dev/null 2>&1 || true
+  "${sudo_cmd[@]}" rm -rf "${CHUNKED_OCI}.part"
+  rm -f "${CHUNKED_POLICY}"
+
+  if [[ "${status}" -ne 0 ]]; then
+    "${sudo_cmd[@]}" rm -rf "${CHUNKED_OCI}"
+  fi
+
+  if [[ "${CHUNKED_PRUNE}" == "1" ]]; then
+    podman image prune -f >/dev/null 2>&1 || true
+    "${sudo_cmd[@]}" podman image prune -f >/dev/null 2>&1 || true
+  fi
+
+  return "${status}"
+}
+trap cleanup EXIT
+
+echo "==> Source image: ${LOCAL_REF}"
+echo "==> Chunked OCI layout: ${CHUNKED_OCI} (${CHUNKED_OCI_REF})"
+echo "==> Cleaning old chunked artifacts"
+"${sudo_cmd[@]}" rm -rf "${CHUNKED_OCI}" "${CHUNKED_OCI}.part"
+rm -f "${CHUNKED_POLICY}"
+if podman image exists "${LOCAL_CHUNKED_REF}" 2>/dev/null; then
+  podman rmi "${LOCAL_CHUNKED_REF}" >/dev/null
+fi
+podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+"${sudo_cmd[@]}" podman rmi "${RECHUNK_SOURCE_REF}" "${RECHUNK_OUTPUT_REF}" >/dev/null 2>&1 || true
+
+echo "==> Copying source image into rootful containers-storage"
+podman tag "${LOCAL_REF}" "${RECHUNK_SOURCE_REF}"
+podman save "${RECHUNK_SOURCE_REF}" | "${sudo_cmd[@]}" podman load >/dev/null
+
+cat >"${CHUNKED_POLICY}" <<'EOF'
+{
+  "default": [
+    {
+      "type": "insecureAcceptAnything"
+    }
+  ]
+}
+EOF
+
+mkdir -p "${CHUNKED_OCI}.part"
+cat >"${CHUNKED_OCI}.part/oci-layout" <<'EOF'
+{"imageLayoutVersion":"1.0.0"}
+EOF
+cat >"${CHUNKED_OCI}.part/index.json" <<'EOF'
+{"schemaVersion":2,"manifests":[]}
+EOF
+
+echo "==> Rechunking in rootful containers-storage"
+"${sudo_cmd[@]}" podman run --rm --privileged \
+  -v /var/lib/containers:/var/lib/containers \
+  -v "${PWD}:/work:z" \
+  -v "${PWD}/${CHUNKED_POLICY}:/etc/containers/policy.json:ro,z" \
+  -w /work \
+  "${RECHUNK_SOURCE_REF}" \
+  rpm-ostree compose build-chunked-oci \
+    --bootc \
+    --max-layers "${CHUNKED_MAX_LAYERS}" \
+    --format-version 2 \
+    --from "${RECHUNK_SOURCE_REF}" \
+    --output "oci:/work/${CHUNKED_OCI}.part:${CHUNKED_OCI_REF}"
+
+"${sudo_cmd[@]}" mv "${CHUNKED_OCI}.part" "${CHUNKED_OCI}"
+"${sudo_cmd[@]}" chown -R "$(id -u):$(id -g)" "${CHUNKED_OCI}"
+
+echo "==> Removing unchunked source images"
+podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+if [[ "${KEEP_UNCHUNKED_IMAGE}" == "1" ]]; then
+  echo "    Keeping ${LOCAL_REF} because KEEP_UNCHUNKED_IMAGE=1"
+else
+  podman rmi "${LOCAL_REF}" >/dev/null 2>&1 || true
+fi
+"${sudo_cmd[@]}" podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+if [[ "${CHUNKED_PRUNE}" == "1" ]]; then
+  podman image prune -f >/dev/null 2>&1 || true
+  "${sudo_cmd[@]}" podman image prune -f >/dev/null 2>&1 || true
+fi
+
+echo "==> Removing rootful temporary images"
+"${sudo_cmd[@]}" podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+podman rmi "${RECHUNK_SOURCE_REF}" >/dev/null 2>&1 || true
+
+echo
+echo "==> Done: ${CHUNKED_OCI}"
+echo "    OCI ref: ${CHUNKED_OCI_REF}"

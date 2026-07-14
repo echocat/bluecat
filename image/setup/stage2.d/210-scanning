@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "==> Scanning + network service discovery"
-rpm-ostree install -y \
+dnf5 install -y \
   sane-backends \
   sane-backends-drivers-scanners \
   sane-airscan \

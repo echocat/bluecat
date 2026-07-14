@@ -1,6 +1,6 @@
 autopart --hibernation
 
-bootc --source-imgref oci:/run/install/repo/images/bluecat.oci:bluecat:local --target-imgref @@TARGET_IMAGE_REF@@ --stateroot bluecat
+bootc --source-imgref oci:/run/install/repo/images/bluecat.oci:bluecat:local-chunked --target-imgref @@TARGET_IMAGE_REF@@ --stateroot bluecat
 
 %post --nochroot --erroronfail
 set -euo pipefail

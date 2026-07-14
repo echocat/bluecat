@@ -21,6 +21,10 @@ if ! command -v podman >/dev/null 2>&1; then
   echo "ERROR: podman not found." >&2
   exit 1
 fi
+if ! command -v skopeo >/dev/null 2>&1; then
+  echo "ERROR: skopeo not found." >&2
+  exit 1
+fi
 
 if [[ "${EUID}" -ne 0 ]]; then
   if command -v sudo >/dev/null 2>&1; then
@@ -37,23 +41,38 @@ OUTPUT_DIR="output"
 BASE_ISO="${OUTPUT_DIR}/fedora-boot-${FEDORA_MAJOR_VERSION}.iso"
 OUT_ISO="${OUTPUT_DIR}/bluecat.iso"
 OCI_DIR="${OUTPUT_DIR}/bluecat.oci"
+ISO_WORK_DIR="${OUTPUT_DIR}/bluecat.iso-work"
 KS_IN="iso/bluecat.ks.in"
 KS_OUT="iso/bluecat.ks"
 ISO_ROOTFS="iso/rootfs"
 ANACONDA_ROOTFS="iso/product.img"
 
 REPO="${IMAGE_REGISTRY}/${IMAGE_NAME}"
-LOCAL_REF="${REPO}:${LOCAL_IMAGE_TAG}"
+OCI_REF="bluecat:${LOCAL_CHUNKED_IMAGE_TAG}"
 TARGET_IMAGE_REF="${REPO}:${ISO_IMAGE_TAG}"
 
 mkdir -p "${OUTPUT_DIR}"
+"${sudo_cmd[@]}" rm -rf "${ISO_WORK_DIR}"
+
+cleanup() {
+  local status=$?
+
+  "${sudo_cmd[@]}" rm -rf "${OCI_DIR}.part" "${ISO_WORK_DIR}"
+
+  return "${status}"
+}
+trap cleanup EXIT
 
 echo "==> Engine: podman"
-echo "==> Source image: ${LOCAL_REF}"
+echo "==> Embedded OCI payload: ${OCI_DIR} (${OCI_REF})"
 echo "==> Installed target image ref: ${TARGET_IMAGE_REF}"
 
-if ! podman image exists "${LOCAL_REF}" 2>/dev/null; then
-  echo "ERROR: ${LOCAL_REF} not found. Run \`mise build:image\` first." >&2
+if [[ ! -f "${OCI_DIR}/index.json" ]]; then
+  echo "ERROR: ${OCI_DIR} not found. Run \`mise build:chunked-image\` first." >&2
+  exit 1
+fi
+if ! skopeo inspect "oci:${OCI_DIR}:${OCI_REF}" >/dev/null; then
+  echo "ERROR: ${OCI_DIR} does not contain ${OCI_REF}. Run \`mise build:chunked-image\` first." >&2
   exit 1
 fi
 
@@ -93,12 +112,6 @@ else
   mv "${BASE_ISO}.part" "${BASE_ISO}"
 fi
 
-echo "==> Exporting local image payload -> ${OCI_DIR}"
-rm -rf "${OCI_DIR}" "${OCI_DIR}.part"
-podman push --compression-format=zstd --compression-level=19 --force-compression \
-  "${LOCAL_REF}" "oci:${OCI_DIR}.part:bluecat:local"
-mv "${OCI_DIR}.part" "${OCI_DIR}"
-
 loop_devices=()
 for d in /dev/loop-control /dev/loop[0-9]*; do
   [[ -e "${d}" ]] && loop_devices+=(--device "${d}")
@@ -120,14 +133,16 @@ echo "==> Building offline ISO with mkksiso (in ${ISO_BUILDER_IMAGE}, as root)"
   -e ISO_ROOTFS="${ISO_ROOTFS}" \
   -e ANACONDA_ROOTFS="${ANACONDA_ROOTFS}" \
   -e OCI_DIR="${OCI_DIR}" \
+  -e ISO_WORK_DIR="${ISO_WORK_DIR}" \
   -v "${PWD}:/work:z" \
   -w /work \
   "${ISO_BUILDER_IMAGE}" \
   bash -euo pipefail -c '
     dnf install -y lorax cpio gzip isomd5sum xorriso >/dev/null
 
-    prod=$(mktemp -d)
-    add_root=$(mktemp -d)
+    mkdir -p "${ISO_WORK_DIR}"
+    prod=$(mktemp -d "${ISO_WORK_DIR}/product.XXXXXX")
+    add_root=$(mktemp -d "${ISO_WORK_DIR}/add-root.XXXXXX")
     mkdir -p "${add_root}/images"
 
     cp -a "${ANACONDA_ROOTFS}/." "${prod}/"
@@ -149,7 +164,7 @@ echo "==> Building offline ISO with mkksiso (in ${ISO_BUILDER_IMAGE}, as root)"
     ( cd "${prod}" && find . | cpio -o -H newc --quiet | gzip -9 ) \
       > "${add_root}/images/product.img"
 
-    cp -a "${OCI_DIR}" "${add_root}/images/bluecat.oci"
+    cp -al "${OCI_DIR}" "${add_root}/images/bluecat.oci"
 
     add_args=(-a "${add_root}/images" -a LICENSE)
     for add_path in "${ISO_ROOTFS}"/*; do
@@ -191,6 +206,6 @@ echo "==> Done: ${OUT_ISO}"
 if command -v du >/dev/null 2>&1; then
   echo "    Size: $(du -h "${OUT_ISO}" | cut -f1)"
 fi
-echo "    Embedded payload: ${LOCAL_REF}"
+echo "    Embedded payload: ${OCI_DIR} (${OCI_REF})"
 echo "    Installed target: ${TARGET_IMAGE_REF}"
 echo "    Checksums: ${OUT_ISO}.sha256, ${OUT_ISO}.md5"

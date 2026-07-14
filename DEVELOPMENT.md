@@ -6,7 +6,7 @@
 .
 ├── mise.toml                # mise config (tools + task discovery)
 ├── mise-tasks/              # self-contained file-tasks -> `mise <name>`
-│   ├── build/               # mise build:image (local image build) + build:iso (offline installer ISO)
+│   ├── build/               # mise build:image, build:chunked-image, build:iso
 │   ├── publish/             # mise publish:image/publish:iso
 │   ├── keys                 # mise keys         (generate MOK + Cosign keys)
 │   ├── verify-keys          # mise verify-keys  (validate MOK, Deno/TS)
@@ -86,23 +86,34 @@ The result is a bootc image that an existing Kinoite system is switched to via
    ```shell
    mise build:image
    # ghcr.io/echocat/bluecat:local is created in podman
+    ```
+4. Build the chunked image from `:local`:
+   Uses `rpm-ostree compose build-chunked-oci --format-version 2` for
+   update-efficient layer reuse. The ISO and publish path use this image. The
+   unchunked `:local` image is removed by default after successful chunking.
+   ```shell
+   mise build:chunked-image
+   # output/bluecat.oci is created with the bluecat:local-chunked reference
    ```
-4. Build the rolling offline installer ISO:
+   The aggregate `mise build` keeps this layout after the ISO build so a later
+   `mise publish:image ...` can push it. The layout is replaced by the next
+   `mise build:chunked-image` run and is not deleted automatically after publish.
+5. Build the rolling offline installer ISO:
    Uses Fedora's Anaconda boot ISO plus `mkksiso` to embed a Kickstart and the
-   locally built bootc image as `/images/bluecat.oci`. The initial
+   locally built chunked OCI layout as `/images/bluecat.oci`. The initial
    deployment is offline; the installed system records the release image ref for
    later updates.
    ```shell
    mise build:iso
    # output/bluecat.iso, output/bluecat.iso.sha256 and output/bluecat.iso.md5 are created
    ```
-5. Publish the rolling ISO to S3-compatible storage:
+6. Publish the rolling ISO to S3-compatible storage:
    ```shell
    mise publish:iso
    # https://download.bluecat.echocat.org/latest/bluecat.iso
    ```
 
-6. Test image publishing/signing without touching release tags:
+7. Test image publishing/signing without touching release tags:
    ```shell
    mise publish:image test local
    # pushes test-local-<UTC-timestamp>, test-local, sha256-<digest>.sig,
@@ -117,9 +128,9 @@ release builds, publishes the rolling ISO:
 
 | Trigger                        | Action                                        |
 |--------------------------------|-----------------------------------------------|
-| push to `main`                 | build image + build ISO + `mise publish:image release` + ISO publish |
-| schedule on `main`             | build image + build ISO + `mise publish:image release` + ISO publish |
-| PR labeled `test image`        | build image + build ISO + `mise publish:image pr <number>` |
+| push to `main`                 | build image + build chunked image + build ISO + `mise publish:image release` + ISO publish |
+| schedule on `main`             | build image + build chunked image + build ISO + `mise publish:image release` + ISO publish |
+| PR labeled `test image`        | build image + build chunked image + build ISO + `mise publish:image pr <number>` |
 | other branches / events        | (not triggered) — build locally, no push      |
 
 The PR path only fires when the `test image` label is **added** to a PR
@@ -129,6 +140,9 @@ The image is pushed to **ghcr.io/echocat/bluecat**. Authentication uses the
 automatic `GITHUB_TOKEN` (the workflow grants it `packages: write`), so no
 registry credentials need to be stored. Only the signing material is needed as
 secrets:
+
+Publishing recompresses `output/bluecat.oci` to zstd for the registry. The ISO
+embeds the layout produced by `mise build:chunked-image`.
 
 | Secret            | Content                                  |
 |-------------------|------------------------------------------|

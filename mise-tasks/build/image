@@ -70,11 +70,14 @@ else
   BUILD_ARGS+=(--pull=newer)
 fi
 BUILD_ARGS+=(--no-cache)
+SOURCE_DATE_EPOCH=0
+BUILD_ARGS+=(--source-date-epoch "${SOURCE_DATE_EPOCH}")
+BUILD_ARGS+=(--rewrite-timestamp)
 
 # OCI metadata used as image labels and manifest annotations. GHCR reads the
 # description from annotations for package metadata.
 IMAGE_DESCRIPTION="Unofficial Fedora Atomic based desktop image (not affiliated with the Fedora Project or Red Hat)"
-IMAGE_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+IMAGE_CREATED="1970-01-01T00:00:00Z"
 IMAGE_REVISION="$(git rev-parse HEAD)"
 IMAGE_VERSION="${FEDORA_MAJOR_VERSION}"
 IMAGE_BASE_NAME="${BASE_IMAGE}:${FEDORA_MAJOR_VERSION}"
@@ -102,6 +105,7 @@ podman "${GLOBAL_ARGS[@]}" build \
   --build-arg "IMAGE_CREATED=${IMAGE_CREATED}" \
   --build-arg "IMAGE_REVISION=${IMAGE_REVISION}" \
   --build-arg "IMAGE_VERSION=${IMAGE_VERSION}" \
+  --build-arg "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" \
   --tag "${LOCAL_REF}" \
   --file Containerfile \
   .
@@ -109,5 +113,6 @@ podman "${GLOBAL_ARGS[@]}" build \
 echo
 echo "==> Done: ${LOCAL_REF}"
 echo "    Inspect locally: podman images | grep bluecat"
+echo "    Chunked OCI:     mise build:chunked-image"
 echo "    ISO:             mise build:iso"
 echo "    Publish:         mise publish:image release    (or: mise publish:image pr <number>, test <name>)"

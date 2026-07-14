@@ -24,6 +24,7 @@ FROM ${BASE_IMAGE}:${FEDORA_MAJOR_VERSION} AS builder
 
 ARG FEDORA_MAJOR_VERSION
 ARG XONE_REF
+ARG SOURCE_DATE_EPOCH
 
 # The signing key is passed as a BuildKit secret (id=mok_key), NOT as an ARG,
 # so it never lands in the layer history. The public cert is copied in.
@@ -40,6 +41,7 @@ COPY image/setup/stage1.d/ /tmp/image-setup/stage1.d/
 # ARGs are passed explicitly as ENV into the script.
 RUN --mount=type=secret,id=mok_key,target=/tmp/certs/mok.key \
     FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
+    SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}" \
     XONE_REF="${XONE_REF}" \
     /tmp/image-setup/stage1
 
@@ -55,6 +57,7 @@ ARG NUSHELL_VERSION
 ARG IMAGE_CREATED
 ARG IMAGE_REVISION
 ARG IMAGE_VERSION
+ARG SOURCE_DATE_EPOCH
 
 # ---------------------------------------------------------------------------
 # OCI image metadata. Do NOT use Fedora as vendor/title - this is an
@@ -103,6 +106,7 @@ COPY image/setup/stage2.d/ /tmp/image-setup/stage2.d/
 # Runtime packages + configuration.
 # ---------------------------------------------------------------------------
 RUN FEDORA_MAJOR_VERSION="${FEDORA_MAJOR_VERSION}" \
+    SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}" \
     RUSTDESK_VERSION="${RUSTDESK_VERSION}" \
     NUSHELL_VERSION="${NUSHELL_VERSION}" \
     /tmp/image-setup/stage2 && \

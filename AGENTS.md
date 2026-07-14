@@ -23,8 +23,17 @@ The project builds:
 Use `mise` tasks as the public project interface:
 
 - `mise build:image` builds the local OCI image.
+- `mise build:chunked-image` builds `output/bluecat.oci`, the chunked OCI layout
+  used for ISO and publish. It removes the unchunked `:local` image by default
+  after successful chunking; set `KEEP_UNCHUNKED_IMAGE=1` only when the
+  intermediate image is needed.
+- `mise build` keeps `output/bluecat.oci` after the ISO build so a following
+  `publish:image` can push it. The layout is replaced by the next
+  `build:chunked-image` run; it is not deleted automatically after publish.
 - `mise publish:image release` pushes release tags for `main` builds.
 - `mise publish:image pr <number>` pushes the PR test image tag only.
+  Publishing recompresses the OCI layout to zstd for the registry; alias tags are
+  copied registry-to-registry with preserved digests.
 - `mise build:iso` builds the offline installer ISO.
 - `mise publish:iso` uploads `bluecat.iso`, `bluecat.iso.sha256`, and
   `bluecat.iso.md5` to S3-compatible storage.
@@ -67,9 +76,9 @@ Before marking shell/workflow changes done, run the relevant checks:
 
 ## CI Model
 
-`.github/workflows/build.yaml` is the artifact workflow. It builds the OCI image
-and the ISO locally first, then publishes artifacts only after both builds
-succeeded.
+`.github/workflows/build.yaml` is the artifact workflow. It builds the OCI image,
+the chunked OCI image, and the ISO locally first, then publishes artifacts only
+after those builds succeeded.
 
 The artifact workflow runs:
 
@@ -99,11 +108,12 @@ branch cancels an older running one.
 
 ## ISO And Anaconda Gotchas
 
-- `mise build:iso` exports the local `:local` image as
-  `output/bluecat.oci` and embeds it under `/images/bluecat.oci` in the ISO.
+- `mise build:iso` embeds the existing `output/bluecat.oci` layout under
+  `/images/bluecat.oci` in the ISO. It hardlinks the layout into the temporary
+  mkksiso tree to avoid a second full copy.
 - `iso/bluecat.ks.in` uses Anaconda's `bootc` Kickstart command with
-  `oci:/run/install/repo/images/bluecat.oci:bluecat:local` as source and the
-  configured release image ref as update target.
+  `oci:/run/install/repo/images/bluecat.oci:bluecat:local-chunked` as source and
+  the configured release image ref as update target.
 - Files that should land in the ISO root live under `iso/rootfs/`. Files that
   should land inside Anaconda's temporary `product.img` live under
   `iso/product.img/` and are packaged during `mise build:iso`.
@@ -126,6 +136,7 @@ branch cancels an older running one.
 - `iso/rootfs/` - files added to the ISO root.
 - `iso/product.img/` - Anaconda product image branding files.
 - `mise-tasks/build/image` - rootless local image build.
+- `mise-tasks/build/chunked-image` - chunked OCI layout build used for ISO and publish.
 - `mise-tasks/build/iso` - offline Anaconda installer ISO build.
 - `mise-tasks/publish/image` - release and PR tag/push logic plus release timestamp tag
   retention.

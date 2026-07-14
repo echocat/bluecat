@@ -49,6 +49,9 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise verify-keys
 
+      - name: Clean runner
+        uses: jlumbroso/free-disk-space@v1.3.1
+
       - name: Prepare CI container storage
         run: |
           set -euo pipefail
@@ -60,7 +63,10 @@ jobs:
           sudo rm -rf \
             /usr/local/lib/android \
             /usr/share/dotnet \
-            /opt/ghc
+            /opt/ghc \
+            ~/.local/share/containers/storage/ \
+            /root/.local/share/containers/storage/ \
+            /var/lib/share/containers/storage/
           docker image prune --all --force || true
           docker builder prune --all --force || true
           sudo apt-get clean
@@ -81,12 +87,15 @@ jobs:
           echo "==> Disk after cleanup"
           df -h
 
-      # Build both artifacts locally first. Publishing only happens after the ISO
+      # Build all artifacts locally first. Publishing only happens after the ISO
       # build has succeeded, so a broken ISO never follows a pushed release tag.
       - name: Build Image
         env:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: mise build:image
+
+      - name: Build Chunked Image
+        run: mise build:chunked-image
 
       - name: Build ISO
         run: mise build:iso

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "==> Virtualization (install only, services not enabled)"
-rpm-ostree install -y \
+dnf5 install -y \
   qemu-kvm \
   virt-install \
   virt-manager \

@@ -11,3 +11,6 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common"
 
 bluecat_run_steps "stage2" "$(dirname -- "${BASH_SOURCE[0]}")/stage2.d"
+
+echo "==> Cleanup left over artifacts..."
+dnf5 clean all
