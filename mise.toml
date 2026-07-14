@@ -1,11 +1,11 @@
 [tools]
-shellcheck = "0.10.0"
-hadolint = "2.12.0"
-yq = "4.44.3"
-deno = "2.9.1"
+shellcheck = "0.11.0"
+hadolint = "2.14.0"
+yq = "4.53.3"
+deno = "2.9.2"
 cosign = "3.1.1"
 s5cmd = "2.3.0"
-hugo = "0.148.2"
+hugo = "0.164.0"
 
 [settings]
 env_file = ".env"
