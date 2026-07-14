@@ -70,7 +70,14 @@ else
   BUILD_ARGS+=(--pull=newer)
 fi
 BUILD_ARGS+=(--no-cache)
-SOURCE_DATE_EPOCH=0
+
+# Keep file mtimes stable for chunk reuse, but avoid 0 because rpm-ostree omits
+# deployment timestamps for zero-valued OSTree commit timestamps.
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
+if ! [[ "${SOURCE_DATE_EPOCH}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "ERROR: SOURCE_DATE_EPOCH must be a positive Unix timestamp (got: ${SOURCE_DATE_EPOCH})." >&2
+  exit 1
+fi
 
 podman_build_help="$(podman build --help)"
 if [[ "${podman_build_help}" == *"--source-date-epoch"* ]]; then
@@ -90,7 +97,7 @@ fi
 # OCI metadata used as image labels and manifest annotations. GHCR reads the
 # description from annotations for package metadata.
 IMAGE_DESCRIPTION="Unofficial Fedora Atomic based desktop image (not affiliated with the Fedora Project or Red Hat)"
-IMAGE_CREATED="1970-01-01T00:00:00Z"
+IMAGE_CREATED="$(date -u -d "@${SOURCE_DATE_EPOCH}" '+%Y-%m-%dT%H:%M:%SZ')"
 IMAGE_REVISION="$(git rev-parse HEAD)"
 IMAGE_VERSION="${FEDORA_MAJOR_VERSION}"
 IMAGE_BASE_NAME="${BASE_IMAGE}:${FEDORA_MAJOR_VERSION}"
