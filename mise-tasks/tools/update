@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Updates tool versions in /mise.toml if any are available."
+#MISE dir="{{config_root}}"
+
+set -euo pipefail
+
+mise upgrade --local --bump --yes
