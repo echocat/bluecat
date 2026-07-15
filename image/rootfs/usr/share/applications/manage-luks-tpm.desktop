@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Manage LUKS TPM
+Comment=Enable or disable TPM2 unlock for LUKS2 devices from crypttab
+Exec=/usr/bin/bash -c "pkexec /usr/bin/manage-luks-tpm; rc=$?; printf '\nPress any key to close...'; read -r _; exit $rc"
+Icon=bluecat-logo-icon
+Terminal=true
+Categories=Settings;HardwareSettings;Security;
+Keywords=luks;cryptsetup;systemd-cryptenroll;tpm;tpm2;disk;encryption;unlock;bluecat;
+StartupNotify=false

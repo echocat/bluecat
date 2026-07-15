@@ -1,0 +1,655 @@
+#!/usr/bin/env bash
+# =============================================================================
+# manage-luks-tpm
+# =============================================================================
+# Local TPM2 unlock manager for LUKS2 devices listed in /etc/crypttab.
+#
+# This tool keeps passphrase keyslots intact. It only adds/removes systemd TPM2
+# enrollment and matching boot hints.
+# =============================================================================
+set -euo pipefail
+
+TITLE="Manage LUKS TPM"
+PCRS="7"
+CRYPTTAB="/etc/crypttab"
+
+export TERM="${TERM:-linux}"
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "ERROR: please run as root (sudo manage-luks-tpm)." >&2
+  exit 1
+fi
+
+require_tools() {
+  local missing=()
+  local tool
+
+  for tool in cryptsetup mktemp systemd-cryptenroll systemd-run timeout; do
+    command -v "${tool}" >/dev/null 2>&1 || missing+=("${tool}")
+  done
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    show_error "Required tool(s) missing: ${missing[*]}"
+    exit 1
+  fi
+}
+
+show_info() {
+  local text="$1"
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 0 && -t 2 ]]; then
+    whiptail --title "${TITLE}" --msgbox "${text}" 22 78 && return 0
+  fi
+
+  printf '\n%s\n\n' "${text}"
+  printf 'Press Enter to continue...'
+  read -r _ || true
+}
+
+show_error() {
+  local text="$1"
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 0 && -t 2 ]]; then
+    whiptail --title "${TITLE}" --msgbox "ERROR: ${text}" 20 78 && return 0
+  fi
+
+  printf '\nERROR: %s\n\n' "${text}" >&2
+}
+
+resolved_device_path() {
+  local device="$1"
+  local resolved=""
+
+  if command -v readlink >/dev/null 2>&1; then
+    resolved="$(readlink -f "${device}" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "${resolved}" ]]; then
+    printf '%s' "${resolved}"
+  else
+    printf '%s' "${device}"
+  fi
+}
+
+refresh_volume_metadata() {
+  local index="$1"
+  local resolved=""
+
+  if [[ -z "${DISPLAY_DEVICES[${index}]}" ]]; then
+    if command -v readlink >/dev/null 2>&1; then
+      resolved="$(readlink -f "${DEVICES[${index}]}" 2>/dev/null || true)"
+    fi
+
+    if [[ -n "${resolved}" ]]; then
+      DISPLAY_DEVICES[${index}]="${resolved}"
+    else
+      DISPLAY_DEVICES[${index}]="${DEVICES[${index}]}"
+    fi
+  fi
+
+  detect_volume_usage "${index}"
+
+  if has_tpm2_token "${DEVICES[${index}]}"; then
+    TPM_STATES[${index}]="enabled"
+  else
+    TPM_STATES[${index}]="disabled"
+  fi
+}
+
+append_usage_item() {
+  local item="$1"
+
+  if [[ -z "${USAGE_TEXT}" ]]; then
+    USAGE_TEXT="${item}"
+  else
+    USAGE_TEXT+=", ${item}"
+  fi
+}
+
+detect_volume_usage() {
+  local index="$1"
+  local name="${CRYPT_NAMES[${index}]}"
+  local mapper="/dev/mapper/${name}"
+  local canonical_mapper=""
+  local resolved=""
+  local line=""
+  local target=""
+  local separator_and_after=""
+  local fs_type=""
+  local source=""
+  local _rest=""
+  local swap_device=""
+
+  USAGE_TEXT=""
+
+  if command -v readlink >/dev/null 2>&1; then
+    resolved="$(readlink -f "${mapper}" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "${resolved}" ]]; then
+    canonical_mapper="${resolved}"
+  else
+    canonical_mapper="${mapper}"
+  fi
+
+  if [[ -r /proc/self/mountinfo ]]; then
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      separator_and_after="${line#* - }"
+      [[ "${separator_and_after}" != "${line}" ]] || continue
+      read -r _ _ _ _ target _rest <<< "${line}"
+      read -r fs_type source _rest <<< "${separator_and_after}"
+      [[ -n "${fs_type}" && -n "${source}" && -n "${target}" ]] || continue
+      [[ "${source}" == "${mapper}" || "${source}" == "${canonical_mapper}" ]] || continue
+
+      case "${target}" in
+        /|/sysroot) append_usage_item "root filesystem (${target})" ;;
+        *) append_usage_item "mounted at ${target}" ;;
+      esac
+    done < /proc/self/mountinfo
+  fi
+
+  if [[ -r /proc/swaps ]]; then
+    while read -r swap_device _rest; do
+      [[ "${swap_device}" != Filename && -n "${swap_device}" ]] || continue
+      [[ "${swap_device}" == "${mapper}" || "${swap_device}" == "${canonical_mapper}" ]] || continue
+      append_usage_item "swap"
+    done < /proc/swaps
+  fi
+
+  if [[ -n "${USAGE_TEXT}" ]]; then
+    USAGES[${index}]="${USAGE_TEXT}"
+  else
+    USAGES[${index}]="crypttab entry ${name}"
+  fi
+}
+
+has_tpm2_device() {
+  compgen -G '/dev/tpmrm[0-9]*' >/dev/null || compgen -G '/dev/tpm[0-9]*' >/dev/null
+}
+
+load_crypttab_devices() {
+  local line=""
+  local name=""
+  local device_field=""
+  local key_file=""
+  local options=""
+  local device=""
+  local uuid=""
+  local seen=" "
+
+  [[ -f "${CRYPTTAB}" ]] || return 0
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" =~ ^[[:space:]]*$ || "${line}" =~ ^[[:space:]]*# ]] && continue
+
+    name=""
+    device_field=""
+    key_file=""
+    options=""
+    read -r name device_field key_file options _ <<< "${line}"
+    [[ -n "${device_field}" ]] || continue
+
+    case "${device_field}" in
+      UUID=*)
+        uuid="${device_field#UUID=}"
+        device="/dev/disk/by-uuid/${uuid}"
+        ;;
+      *)
+        uuid=""
+        device="${device_field}"
+        ;;
+    esac
+
+    [[ -n "${device}" ]] || continue
+    [[ "${seen}" == *" ${device} "* ]] && continue
+    seen+="${device} "
+
+    if ! timeout 5s cryptsetup luksDump "${device}" >/dev/null 2>&1; then
+      continue
+    fi
+
+    if ! timeout 5s cryptsetup luksDump "${device}" | grep -Eq '^Version:[[:space:]]+2$'; then
+      continue
+    fi
+
+    if [[ -z "${uuid}" ]]; then
+      uuid="$(timeout 5s cryptsetup luksUUID "${device}")"
+    fi
+    [[ -n "${uuid}" ]] || continue
+
+    CRYPT_NAMES+=("${name}")
+    DEVICES+=("${device}")
+    DISPLAY_DEVICES+=("")
+    UUIDS+=("${uuid}")
+    USAGES+=("")
+    TPM_STATES+=("")
+  done < "${CRYPTTAB}"
+}
+
+has_tpm2_token() {
+  local device="$1"
+
+  timeout 5s cryptsetup luksDump "${device}" | grep -q 'systemd-tpm2'
+}
+
+csv_remove_tpm2_option() {
+  local csv="$1"
+  local item
+  local items=()
+  local result=()
+
+  IFS=',' read -r -a items <<< "${csv}"
+  for item in "${items[@]}"; do
+    [[ -n "${item}" ]] || continue
+    [[ "${item}" == tpm2-device=* ]] && continue
+    result+=("${item}")
+  done
+
+  local IFS=','
+  printf '%s' "${result[*]}"
+}
+
+csv_add_tpm2_option() {
+  local csv="$1"
+  local without_tpm2=""
+
+  without_tpm2="$(csv_remove_tpm2_option "${csv}")"
+  if [[ -n "${without_tpm2}" ]]; then
+    printf '%s,tpm2-device=auto' "${without_tpm2}"
+  else
+    printf 'tpm2-device=auto'
+  fi
+}
+
+crypttab_device_matches() {
+  local field="$1"
+  local luks_device="$2"
+  local luks_uuid="$3"
+
+  case "${field}" in
+    "UUID=${luks_uuid}"|"/dev/disk/by-uuid/${luks_uuid}"|"${luks_device}") return 0 ;;
+  esac
+
+  return 1
+}
+
+update_crypttab_option() {
+  local action="$1"
+  local luks_device="$2"
+  local luks_uuid="$3"
+  local tmp=""
+  local changed=false
+  local found=false
+  local line=""
+  local name=""
+  local device_field=""
+  local key_file=""
+  local options=""
+  local rest=""
+  local new_options=""
+
+  [[ -f "${CRYPTTAB}" ]] || return 0
+
+  tmp="$(mktemp "${CRYPTTAB}.XXXXXX")"
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" =~ ^[[:space:]]*$ || "${line}" =~ ^[[:space:]]*# ]]; then
+      printf '%s\n' "${line}" >> "${tmp}"
+      continue
+    fi
+
+    name=""
+    device_field=""
+    key_file=""
+    options=""
+    rest=""
+    read -r name device_field key_file options rest <<< "${line}"
+
+    if [[ -n "${device_field}" ]] && crypttab_device_matches "${device_field}" "${luks_device}" "${luks_uuid}"; then
+      found=true
+      case "${action}" in
+        enable) new_options="$(csv_add_tpm2_option "${options}")" ;;
+        disable) new_options="$(csv_remove_tpm2_option "${options}")" ;;
+        *) show_error "Internal error: invalid crypttab action '${action}'."; exit 1 ;;
+      esac
+
+      if [[ "${new_options}" != "${options}" ]]; then
+        changed=true
+      fi
+
+      if [[ -n "${new_options}" ]]; then
+        printf '%s %s %s %s' "${name}" "${device_field}" "${key_file:-none}" "${new_options}" >> "${tmp}"
+      else
+        printf '%s %s %s' "${name}" "${device_field}" "${key_file:-none}" >> "${tmp}"
+      fi
+      [[ -z "${rest}" ]] || printf ' %s' "${rest}" >> "${tmp}"
+      printf '\n' >> "${tmp}"
+    else
+      printf '%s\n' "${line}" >> "${tmp}"
+    fi
+  done < "${CRYPTTAB}"
+
+  if [[ "${found}" == true && "${changed}" == true ]]; then
+    install -m 0644 "${tmp}" "${CRYPTTAB}"
+  fi
+
+  rm -f "${tmp}"
+}
+
+current_rd_luks_options_args() {
+  local luks_uuid="$1"
+  local arg
+
+  command -v rpm-ostree >/dev/null 2>&1 || return 0
+
+  while IFS= read -r arg; do
+    printf '%s\n' "${arg}"
+  done < <(rpm-ostree kargs 2>/dev/null | tr ' ' '\n' | grep -F "rd.luks.options=${luks_uuid}=" || true)
+}
+
+update_kernel_args() {
+  local action="$1"
+  local luks_uuid="$2"
+  local existing_args=()
+  local arg=""
+  local options=""
+  local merged_options=""
+  local desired_arg=""
+
+  command -v rpm-ostree >/dev/null 2>&1 || return 0
+
+  while IFS= read -r arg; do
+    [[ -n "${arg}" ]] || continue
+    existing_args+=("${arg}")
+  done < <(current_rd_luks_options_args "${luks_uuid}")
+
+  for arg in "${existing_args[@]}"; do
+    options="${arg#rd.luks.options=${luks_uuid}=}"
+    options="$(csv_remove_tpm2_option "${options}")"
+    [[ -z "${options}" ]] || merged_options="${options}"
+    rpm-ostree kargs --delete-if-present="${arg}" >/dev/null
+  done
+
+  case "${action}" in
+    enable) merged_options="$(csv_add_tpm2_option "${merged_options}")" ;;
+    disable) merged_options="$(csv_remove_tpm2_option "${merged_options}")" ;;
+    *) show_error "Internal error: invalid kernel args action '${action}'."; exit 1 ;;
+  esac
+
+  if [[ -n "${merged_options}" ]]; then
+    desired_arg="rd.luks.options=${luks_uuid}=${merged_options}"
+    rpm-ostree kargs --append-if-missing="${desired_arg}" >/dev/null
+  fi
+}
+
+ask_passphrase_to_file() {
+  local index="$1"
+  local credential_file="$2"
+  local passphrase=""
+
+  set_volume_action_text "${index}" enable
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 0 && -t 2 ]]; then
+    whiptail --title "${TITLE}" --ok-button "Activate TPM2" --cancel-button "Cancel" --passwordbox "${ACTION_TEXT}" 24 86 2>"${credential_file}"
+    return $?
+  fi
+
+  printf '\n%s\n\nActivate TPM2? [y/N]: ' "${ACTION_TEXT}"
+  read -r passphrase || return 130
+  [[ "${passphrase}" == "y" || "${passphrase}" == "Y" || "${passphrase}" == "yes" || "${passphrase}" == "YES" ]] || return 130
+
+  printf 'Passphrase: '
+  read -rs passphrase || return 1
+  printf '\n'
+  printf '%s' "${passphrase}" > "${credential_file}"
+}
+
+enroll_tpm2() {
+  local index="$1"
+  local device="${DEVICES[${index}]}"
+  local credential_file=""
+  local rc
+
+  credential_file="$(mktemp /run/bluecat-luks-passphrase.XXXXXX)"
+  trap 'rm -f "${credential_file}"' RETURN
+  chmod 0600 "${credential_file}"
+
+  set +e
+  ask_passphrase_to_file "${index}" "${credential_file}"
+  rc=$?
+  set -e
+
+  if [[ "${rc}" -ne 0 ]]; then
+    rm -f "${credential_file}"
+    trap - RETURN
+    return "${rc}"
+  fi
+
+  if [[ ! -s "${credential_file}" ]]; then
+    rm -f "${credential_file}"
+    trap - RETURN
+    show_error "No passphrase was entered. No changes were made."
+    return 2
+  fi
+
+  set +e
+  systemd-run \
+    --wait \
+    --pipe \
+    --collect \
+    -p "LoadCredential=cryptenroll.passphrase:${credential_file}" \
+    /usr/bin/systemd-cryptenroll "${device}" --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs="${PCRS}"
+  rc=$?
+  set -e
+
+  rm -f "${credential_file}"
+  trap - RETURN
+  return "${rc}"
+}
+
+set_volume_details() {
+  local index="$1"
+
+  refresh_volume_metadata "${index}"
+
+  DETAILS_TEXT="Device: ${DISPLAY_DEVICES[${index}]}
+LUKS2 UUID: ${UUIDS[${index}]}
+Usage: ${USAGES[${index}]}
+Crypttab name: ${CRYPT_NAMES[${index}]}
+TPM2 unlock: ${TPM_STATES[${index}]}"
+}
+
+set_volume_menu_text() {
+  local index="$1"
+
+  refresh_volume_metadata "${index}"
+
+  MENU_TEXT="${DISPLAY_DEVICES[${index}]} | LUKS2 ${UUIDS[${index}]} | TPM2 ${TPM_STATES[${index}]}"
+}
+
+set_volume_action_text() {
+  local index="$1"
+  local action="$2"
+
+  set_volume_details "${index}"
+
+  case "${action}" in
+    enable)
+      ACTION_TEXT="${DETAILS_TEXT}
+
+TPM2 unlock will be enabled or refreshed for this LUKS2 volume.
+
+PCR binding: ${PCRS} (Secure Boot policy)
+
+The normal LUKS passphrase remains enrolled as fallback. Enter the current LUKS passphrase below."
+      ;;
+    disable)
+      ACTION_TEXT="${DETAILS_TEXT}
+
+TPM2 unlock is already active for this LUKS2 volume.
+
+This removes only TPM2 unlock metadata and boot hints. The normal LUKS passphrase remains available.
+
+Deactivate TPM2 unlock now?"
+      ;;
+    *)
+      show_error "Internal error: invalid volume action '${action}'."
+      exit 1
+      ;;
+  esac
+}
+
+select_device() {
+  local choices=()
+  local selected=""
+  local answer=""
+  local i
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 0 && -t 2 ]]; then
+    for i in "${!DEVICES[@]}"; do
+      set_volume_menu_text "${i}"
+      choices+=("$((i + 1)))" "${MENU_TEXT}")
+    done
+
+    if ! selected="$(whiptail --title "${TITLE}" --ok-button "Next" --cancel-button "Cancel" --menu "Select a LUKS2 volume to manage." 24 100 12 "${choices[@]}" 3>&1 1>&2 2>&3)"; then
+      return 1
+    fi
+    selected="${selected%)}"
+    [[ -n "${selected}" ]] || return 1
+    SELECTED_INDEX="$((selected - 1))"
+    return 0
+  fi
+
+  printf '\nSelect a LUKS2 volume to manage:\n\n'
+  for i in "${!DEVICES[@]}"; do
+    set_volume_menu_text "${i}"
+    printf '%s) %s\n' "$((i + 1))" "${MENU_TEXT}"
+  done
+  printf '\nSelection or empty to cancel: '
+  read -r answer || return 1
+  [[ -n "${answer}" ]] || return 1
+  [[ "${answer}" =~ ^[0-9]+$ ]] || return 1
+  [[ "${answer}" -ge 1 && "${answer}" -le "${#DEVICES[@]}" ]] || return 1
+  SELECTED_INDEX="$((answer - 1))"
+}
+
+confirm_disable_tpm2() {
+  local index="$1"
+  local answer=""
+
+  set_volume_action_text "${index}" disable
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 0 && -t 2 ]]; then
+    whiptail --title "${TITLE}" --yes-button "Deactivate TPM2" --no-button "Cancel" --yesno "${ACTION_TEXT}" 24 86
+    return $?
+  fi
+
+  printf '\n%s\n\nDeactivate TPM2? [y/N]: ' "${ACTION_TEXT}"
+  read -r answer || return 1
+  [[ "${answer}" == "y" || "${answer}" == "Y" || "${answer}" == "yes" || "${answer}" == "YES" ]]
+}
+
+manage_device() {
+  local index="$1"
+  local rc=0
+
+  if has_tpm2_token "${DEVICES[${index}]}"; then
+    if ! confirm_disable_tpm2 "${index}"; then
+      return 0
+    fi
+
+    if ! systemd-cryptenroll "${DEVICES[${index}]}" --wipe-slot=tpm2; then
+      show_error "TPM2 deactivation failed for ${DISPLAY_DEVICES[${index}]}.
+
+No boot hints were changed."
+      return 1
+    fi
+
+    update_crypttab_option disable "${DEVICES[${index}]}" "${UUIDS[${index}]}"
+    update_kernel_args disable "${UUIDS[${index}]}"
+
+    set_volume_details "${index}"
+
+    show_info "TPM2 unlock has been disabled successfully.
+
+${DETAILS_TEXT}
+
+The LUKS passphrase remains available for boot unlock."
+    return 0
+  fi
+
+  if ! has_tpm2_device; then
+    show_error "No TPM2 device was detected. TPM2 unlock cannot be activated on this system."
+    return 1
+  fi
+
+  set +e
+  enroll_tpm2 "${index}"
+  rc=$?
+  set -e
+
+  case "${rc}" in
+    0) ;;
+    130) return 0 ;;
+    *)
+      if [[ "${rc}" -ne 2 ]]; then
+        show_error "TPM2 enrollment failed for ${DISPLAY_DEVICES[${index}]}.
+
+No boot hints were changed."
+      fi
+      return 1
+      ;;
+  esac
+
+  update_crypttab_option enable "${DEVICES[${index}]}" "${UUIDS[${index}]}"
+  update_kernel_args enable "${UUIDS[${index}]}"
+
+  set_volume_details "${index}"
+
+  show_info "TPM2 unlock has been enabled/refreshed successfully.
+
+${DETAILS_TEXT}
+
+Reboot to verify TPM2 unlock. Keep your LUKS passphrase available as fallback."
+}
+
+main() {
+  require_tools
+
+  printf '==> Reading LUKS devices from %s\n' "${CRYPTTAB}" >&2
+  load_crypttab_devices
+
+  if [[ "${#DEVICES[@]}" -eq 0 ]]; then
+    show_info "No matching LUKS2 volume was found in ${CRYPTTAB}.
+
+TPM2 unlock can only be activated or deactivated for detected LUKS2 volumes. There is nothing to manage."
+    exit 0
+  fi
+
+  if [[ "${#DEVICES[@]}" -eq 1 ]]; then
+    manage_device 0
+    exit 0
+  fi
+
+  while true; do
+    if ! select_device; then
+      exit 0
+    fi
+
+    manage_device "${SELECTED_INDEX}" || true
+  done
+}
+
+CRYPT_NAMES=()
+DEVICES=()
+DISPLAY_DEVICES=()
+UUIDS=()
+USAGES=()
+TPM_STATES=()
+USAGE_TEXT=""
+MENU_TEXT=""
+DETAILS_TEXT=""
+ACTION_TEXT=""
+SELECTED_INDEX=""
+
+main "$@"

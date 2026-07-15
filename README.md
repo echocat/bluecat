@@ -43,6 +43,7 @@ The project publishes:
 - [RustDesk](https://rustdesk.com/) for remote access.
 - Virtualization tools ([QEMU/KVM](https://www.qemu.org/), [virt-manager](https://virt-manager.org/), [libvirt](https://libvirt.org/) / installed but not enabled by default).
 - Desktop and hardware utilities such as codecs, VA-API-related pieces, [YubiKey](https://www.yubico.com/) / [FIDO2](https://fidoalliance.org/fido2/) tools, [rclone](https://rclone.org/), [dislocker](https://github.com/Aorimn/dislocker), `htop`, `mc` and common USB/PCI diagnostics.
+- A local [TPM2 disk unlock manager](docs/luks-tpm2.md) for enabling or disabling TPM2 unlock on LUKS2 devices listed in `/etc/crypttab`.
 
 ## Installation
 
@@ -110,6 +111,18 @@ The same flow is available from the desktop application menu as **Enable Xbox Wi
 
 Details and undo steps: [`docs/xbox-firmware.md`](docs/xbox-firmware.md).
 
+### TPM2 Disk Unlock
+
+If the installed system uses LUKS2 and has a TPM2 device, TPM2 unlock can be enabled or disabled after installation:
+
+```bash
+sudo manage-luks-tpm
+```
+
+The same flow is available from the desktop application menu as **Manage LUKS TPM**. It keeps the normal LUKS passphrase as fallback and uses `systemd-cryptenroll` for the actual TPM2 enrollment.
+
+Details and undo steps: [`docs/luks-tpm2.md`](docs/luks-tpm2.md).
+
 ### Virtualization Services
 
 Virtualization packages are installed, but libvirt services are not enabled by default. Enable the services you need on the installed system.
@@ -126,6 +139,7 @@ Important references:
 - [`docs/legal.md`](docs/legal.md) - component and licensing boundaries
 - [`docs/nvidia.md`](docs/nvidia.md) - NVIDIA component notes
 - [`docs/xbox-firmware.md`](docs/xbox-firmware.md) - Xbox firmware opt-in flow
+- [`docs/luks-tpm2.md`](docs/luks-tpm2.md) - TPM2 unlock manager for LUKS2 devices
 - [`docs/secure-boot.md`](docs/secure-boot.md) - MOK enrollment and verification
 
 ## Development
