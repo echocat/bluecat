@@ -1,0 +1,232 @@
+#!/usr/bin/env -S deno run --allow-env=UNSPLASH_ACCESS_KEY --allow-net --allow-read --allow-write --allow-run=magick
+//MISE description="Download Unsplash wallpapers into image/rootfs/ and render PNG/JXL sizes"
+//MISE dir="{{config_root}}"
+
+type UnsplashPhoto = {
+  id: string;
+  width: number;
+  height: number;
+  description?: string | null;
+  alt_description?: string | null;
+  links: {
+    download_location: string;
+    html?: string;
+  };
+  user: {
+    name?: string;
+    portfolio_url?: string | null;
+    links?: {
+      html?: string;
+    };
+  };
+};
+
+const OUTPUT_ROOT = "image/rootfs/usr/share/wallpapers";
+const RENDER_SIZES = [
+  { width: 3840, height: 2160 },
+  { width: 1920, height: 1080 },
+];
+
+const accessKey = Deno.env.get("UNSPLASH_ACCESS_KEY");
+if (accessKey === undefined || accessKey.length === 0) {
+  console.error("ERROR: UNSPLASH_ACCESS_KEY is not set.");
+  Deno.exit(1);
+}
+
+if (Deno.args.length === 0) {
+  console.error("Usage: mise wallpapers:unsplash <unsplash-id-or-filename> [...]");
+  Deno.exit(1);
+}
+
+await requireCommand("magick");
+const ids = [...new Set(Deno.args.map(parsePhotoId))];
+for (const id of ids) {
+  await renderWallpaper(id);
+}
+
+async function renderWallpaper(id: string): Promise<void> {
+  console.log(`==> Unsplash wallpaper: ${id}`);
+  const photo = await fetchPhoto(id);
+  const directory = `${OUTPUT_ROOT}/unsplash_${photo.id}`;
+  const imagesDirectory = `${directory}/contents/images`;
+  const tempDirectory = await Deno.makeTempDir({ prefix: `bluecat-unsplash-${photo.id}-` });
+
+  try {
+    await Deno.remove(imagesDirectory, { recursive: true }).catch(() => undefined);
+    await Deno.mkdir(imagesDirectory, { recursive: true });
+
+    const sourcePath = `${tempDirectory}/source`;
+    await downloadPhoto(photo, sourcePath);
+
+    const sizes = uniqueSizes([
+      { width: photo.width, height: photo.height },
+      ...RENDER_SIZES,
+    ]);
+
+    for (const size of sizes) {
+      const baseName = `${size.width}x${size.height}`;
+      const pngPath = `${imagesDirectory}/${baseName}.png`;
+      const jxlPath = `${imagesDirectory}/${baseName}.jxl`;
+      const resizeArgs = [
+        sourcePath,
+        "-auto-orient",
+        "-resize",
+        `${size.width}x${size.height}^`,
+        "-gravity",
+        "center",
+        "-extent",
+        `${size.width}x${size.height}`,
+      ];
+      await run("magick", [
+        ...resizeArgs,
+        pngPath,
+      ]);
+      await run("magick", [
+        ...resizeArgs,
+        jxlPath,
+      ]);
+      console.log(`    wrote ${pngPath}`);
+      console.log(`    wrote ${jxlPath}`);
+    }
+
+    await Deno.writeTextFile(`${directory}/metadata.json`, JSON.stringify(metadataFor(photo), null, 4) + "\n");
+    console.log(`    wrote ${directory}/metadata.json`);
+  } finally {
+    await Deno.remove(tempDirectory, { recursive: true }).catch(() => undefined);
+  }
+}
+
+function parsePhotoId(value: string): string {
+  const id = value
+    .replace(/^unsplash-/, "")
+    .replace(/\.[^.]+$/, "");
+
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    console.error(`ERROR: invalid Unsplash photo id: ${value}`);
+    Deno.exit(1);
+  }
+
+  return id;
+}
+
+async function fetchPhoto(id: string): Promise<UnsplashPhoto> {
+  const response = await fetch(`https://api.unsplash.com/photos/${id}`, {
+    headers: unsplashHeaders(),
+  });
+
+  if (!response.ok) {
+    console.error(`ERROR: Unsplash returned ${response.status} for photo ${id}.`);
+    Deno.exit(1);
+  }
+
+  const photo = await response.json() as UnsplashPhoto;
+  if (typeof photo.id !== "string" || typeof photo.width !== "number" || typeof photo.height !== "number") {
+    console.error(`ERROR: Unsplash response for ${id} is missing required photo metadata.`);
+    Deno.exit(1);
+  }
+
+  if (typeof photo.links?.download_location !== "string") {
+    console.error(`ERROR: Unsplash response for ${id} has no download_location.`);
+    Deno.exit(1);
+  }
+
+  return photo;
+}
+
+async function downloadPhoto(photo: UnsplashPhoto, target: string): Promise<void> {
+  const trackingResponse = await fetch(photo.links.download_location, {
+    headers: unsplashHeaders(),
+  });
+  if (!trackingResponse.ok) {
+    console.error(`ERROR: Unsplash download tracking returned ${trackingResponse.status} for ${photo.id}.`);
+    Deno.exit(1);
+  }
+
+  const tracking = await trackingResponse.json() as { url?: unknown };
+  if (typeof tracking.url !== "string" || tracking.url.length === 0) {
+    console.error(`ERROR: Unsplash download tracking for ${photo.id} returned no URL.`);
+    Deno.exit(1);
+  }
+
+  const imageResponse = await fetch(tracking.url);
+  if (!imageResponse.ok || imageResponse.body === null) {
+    console.error(`ERROR: image download returned ${imageResponse.status} for ${photo.id}.`);
+    Deno.exit(1);
+  }
+
+  await Deno.writeFile(target, imageResponse.body);
+}
+
+function unsplashHeaders(): HeadersInit {
+  return {
+    "Accept-Version": "v1",
+    "Authorization": `Client-ID ${accessKey}`,
+  };
+}
+
+function uniqueSizes(sizes: Array<{ width: number; height: number }>): Array<{ width: number; height: number }> {
+  const seen = new Set<string>();
+  return sizes.filter((size) => {
+    const key = `${size.width}x${size.height}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function metadataFor(photo: UnsplashPhoto): unknown {
+  const authorName = photo.user.name ?? "Unsplash";
+  const authorWebsite = photo.user.portfolio_url ?? photo.user.links?.html ?? photo.links.html;
+  const name = titleFor(photo);
+  const author: Record<string, string> = { Name: authorName };
+  if (authorWebsite !== undefined && authorWebsite !== null && authorWebsite.length > 0) {
+    author.Website = authorWebsite;
+  }
+
+  return {
+    KPlugin: {
+      Authors: [author],
+      Id: `unsplash_${photo.id}`,
+      License: "LicenseRef-Unsplash",
+      Name: name,
+      Description: name,
+      Website: photo.links.html ?? `https://unsplash.com/photos/${photo.id}`,
+    },
+  };
+}
+
+function titleFor(photo: UnsplashPhoto): string {
+  const title = photo.description ?? photo.alt_description;
+  if (title !== undefined && title !== null && title.trim().length > 0) {
+    return title.trim();
+  }
+  return `Unsplash ${photo.id}`;
+}
+
+async function requireCommand(command: string): Promise<void> {
+  let result: Deno.CommandOutput | undefined;
+  try {
+    result = await new Deno.Command(command, { args: ["--version"] }).output();
+  } catch {
+    result = undefined;
+  }
+
+  if (result === undefined || !result.success) {
+    console.error(`ERROR: required command not found or not working: ${command}`);
+    Deno.exit(1);
+  }
+}
+
+async function run(command: string, args: string[]): Promise<void> {
+  const result = await new Deno.Command(command, { args }).output();
+  if (!result.success) {
+    const stderr = new TextDecoder().decode(result.stderr).trim();
+    console.error(`ERROR: command failed: ${command} ${args.join(" ")}`);
+    if (stderr.length > 0) {
+      console.error(stderr);
+    }
+    Deno.exit(1);
+  }
+}

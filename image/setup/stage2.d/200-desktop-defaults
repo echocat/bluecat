@@ -26,4 +26,10 @@ dnf5 install -y \
   yubikey-manager \
   fido2-tools \
   pam-u2f \
-  policycoreutils-python-utils
+  policycoreutils-python-utils \
+  blivet-gui \
+  kde-partitionmanager \
+  btrfs-assistant \
+  btrfs-progs \
+  snapper \
+  btrfsmaintenance

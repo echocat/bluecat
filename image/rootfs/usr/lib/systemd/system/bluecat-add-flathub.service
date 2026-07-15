@@ -5,7 +5,6 @@ Documentation=https://github.com/echocat/bluecat
 ConditionPathExists=!/var/lib/flatpak/.bluecat-flathub-initialized
 # Fedora's own repo setup runs here too; order after it so both remotes exist.
 After=flatpak-add-fedora-repos.service
-Before=bluecat-install-brave.service
 
 [Service]
 Type=oneshot

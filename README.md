@@ -30,7 +30,7 @@ The project publishes:
 - [NVIDIA](https://www.nvidia.com/) driver stack from [RPM Fusion nonfree](https://rpmfusion.org/), with kernel modules built during image creation and signed with the bluecat [MOK](docs/secure-boot.md) for Secure Boot. See [`docs/nvidia.md`](docs/nvidia.md).
 - [xone, the open-source Xbox controller driver](https://github.com/medusalix/xone), plus a bluecat activator that [can automatically install the Microsoft Xbox Wireless Adapter firmware locally when needed](docs/xbox-firmware.md).
 - [Flathub](https://flathub.org/) enabled system-wide on first boot, using the unfiltered Flathub catalog.
-- [Brave](https://brave.com/) installed from Flathub on first boot as the default browser replacement; the Firefox RPM from the base image is removed.
+- [Brave](https://brave.com/) installed  as the default browser.
 - [Nix](https://nixos.org/) package manager in multi-user daemon mode.
 - [Distrobox](https://distrobox.it/) is installed, optimal for developers.
 - Gaming tools:
@@ -86,9 +86,8 @@ The image enables several setup tasks automatically:
 
 1. Secure Boot MOK enrollment prompt, only when UEFI Secure Boot is enabled and the bluecat MOK certificate is not enrolled yet.
 2. Flathub system remote setup.
-3. Brave Flatpak installation from Flathub. If the network is unavailable, this is retried later.
-4. Nix writable directory setup and `nix-daemon` activation.
-5. NVIDIA and xone module autoload configuration.
+3. Nix writable directory setup and `nix-daemon` activation.
+4. NVIDIA and xone module autoload configuration.
 
 > [!IMPORTANT]
 > If Secure Boot is enabled, complete the blue MokManager enrollment after the prompt asks you to reboot. Without MOK enrollment, Secure Boot can reject the NVIDIA and xone modules; NVIDIA-only systems may fail to reach a graphical login because `nouveau` and `nova_core` are blacklisted for the proprietary NVIDIA driver stack.

@@ -6,18 +6,19 @@ project's intent and the boundaries between the components.
 
 ## Component boundaries
 
-| Component                      | Origin                                   | License / terms                          | Applies project (MIT) license? |
-|--------------------------------|------------------------------------------|------------------------------------------|--------------------------------|
-| Project source / config / docs | this repository (echocat)                | MIT (see `LICENSE`)                       | Yes                            |
-| Fedora base                    | Fedora Project (Kinoite base image)      | Fedora's licenses / trademarks            | No                             |
-| RPM Fusion packages            | RPM Fusion (nonfree)                      | per-package (incl. proprietary NVIDIA)    | No                             |
-| NVIDIA driver components       | NVIDIA (via RPM Fusion)                   | NVIDIA proprietary license                | No                             |
-| xone driver                    | medusalix/xone                           | GPL-2.0                                   | No                             |
-| Microsoft Xbox firmware        | Microsoft (NOT shipped by this project)  | Microsoft terms                           | No                             |
-| Flathub apps (e.g. Brave)      | third parties (NOT shipped, installed on first boot) | per-app (see each app on Flathub) | No                             |
-| Gaming applications and tools  | Fedora, RPM Fusion and upstream projects | per-package / upstream terms              | No                             |
-| RustDesk                       | RustDesk upstream GitHub RPM release     | RustDesk / upstream terms                 | No                             |
-| Nix and Nushell                | Fedora packages and upstream releases    | per-component upstream licenses           | No                             |
+| Component                      | Origin                                          | License / terms                        | Applies project (MIT) license? |
+|--------------------------------|-------------------------------------------------|----------------------------------------|--------------------------------|
+| Project source / config / docs | this repository (echocat)                       | MIT (see `LICENSE`)                    | Yes                            |
+| Fedora base                    | Fedora Project (Kinoite base image)             | Fedora's licenses / trademarks         | No                             |
+| RPM Fusion packages            | RPM Fusion (nonfree)                            | per-package (incl. proprietary NVIDIA) | No                             |
+| NVIDIA driver components       | NVIDIA (via RPM Fusion)                         | NVIDIA proprietary license             | No                             |
+| xone driver                    | medusalix/xone                                  | GPL-2.0                                | No                             |
+| Microsoft Xbox firmware        | Microsoft (NOT shipped by this project)         | Microsoft terms                        | No                             |
+| Flathub apps                   | third parties (NOT shipped, installed by users) | per-app (see each app on Flathub)      | No                             |
+| Brave                          | Brave Software official RPM repository          | Brave / upstream terms                 | No                             |
+| Gaming applications and tools  | Fedora, RPM Fusion and upstream projects        | per-package / upstream terms           | No                             |
+| RustDesk                       | RustDesk upstream GitHub RPM release            | RustDesk / upstream terms              | No                             |
+| Nix and Nushell                | Fedora packages and upstream releases           | per-component upstream licenses        | No                             |
 
 ## What this project does and does not do
 
@@ -44,14 +45,17 @@ project's intent and the boundaries between the components.
   software. Each application carries its **own license and terms**; this project
   neither authors, redistributes, nor vets those applications. Users are
   responsible for complying with the terms of any app they install.
-- The default browser is **Brave** (`com.brave.Browser`), installed from Flathub
-  on first boot by `bluecat-install-brave.service`. Brave is a product of Brave
-  Software, Inc. and is subject to its own license and terms; it is **not**
-  bundled into the image and **not** covered by this project's MIT license. The
-  Firefox RPM from the Fedora base is removed from the image in favor of Brave.
 - The Fedora Flatpak remote (`registry.fedoraproject.org`) remains available but
   is deprioritized so that Flathub is preferred for applications available from
   both.
+
+## Brave
+
+- The default browser is **Brave**, installed from the official Brave RPM
+  repository during image creation. RPM signatures are verified against Brave's
+  RPM signing key before installation.
+- Brave is a product of Brave Software, Inc. and is subject to its own license
+  and terms; it is **not** covered by this project's MIT license.
 
 ## Other third-party applications and tools
 

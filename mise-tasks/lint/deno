@@ -12,7 +12,8 @@ deno check \
   mise-tasks/dependencies/latest/_default \
   mise-tasks/dependencies/latest/nushell \
   mise-tasks/dependencies/latest/rustdesk \
-  mise-tasks/dependencies/latest/xone
+  mise-tasks/dependencies/latest/xone \
+  mise-tasks/wallpapers/unsplash
 deno lint --ext=ts \
   mise-tasks/keys \
   mise-tasks/verify-keys \
@@ -22,4 +23,5 @@ deno lint --ext=ts \
   mise-tasks/dependencies/latest/_default \
   mise-tasks/dependencies/latest/nushell \
   mise-tasks/dependencies/latest/rustdesk \
-  mise-tasks/dependencies/latest/xone
+  mise-tasks/dependencies/latest/xone \
+  mise-tasks/wallpapers/unsplash

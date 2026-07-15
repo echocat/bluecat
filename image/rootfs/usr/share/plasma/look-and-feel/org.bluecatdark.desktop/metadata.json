@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "echocat"
+            }
+        ],
+        "Description": "bluecat desktop dark defaults",
+        "Id": "org.bluecat.desktop",
+        "License": "MIT",
+        "Name": "bluecat Dark"
+    }
+}

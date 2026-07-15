@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Brave (official RPM repository)"
+if [[ -L /opt ]]; then
+  rm -f /opt
+  mkdir -p /opt
+fi
+
+dnf5 install -y brave-browser
+brave-browser --version

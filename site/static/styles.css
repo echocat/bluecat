@@ -361,6 +361,7 @@ p {
 
 .install__panel .terminal {
   margin-top: 18px;
+  max-width: 80vw;
 }
 
 .terminal {
@@ -397,11 +398,15 @@ pre {
 .note {
   max-width: 960px;
   margin-bottom: 64px;
+}
+
+.note article {
+  padding: 108px clamp(20px, 5vw, 56px);
   border: 1px solid var(--line);
   border-radius: 34px;
   background:
-    radial-gradient(circle at 90% 0%, rgb(0 111 179 / 30%), transparent 20rem),
-    rgb(255 255 255 / 5%);
+          radial-gradient(circle at 90% 0%, rgb(0 111 179 / 30%), transparent 20rem),
+          rgb(255 255 255 / 5%);
 }
 
 .note a {

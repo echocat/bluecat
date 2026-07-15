@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Redd Francisco",
+                "Website": "https://reddfrancisco.com/"
+            }
+        ],
+        "Id": "unsplash_gdQnsMbhkUs",
+        "License": "LicenseRef-Unsplash",
+        "Name": "Moraine Lake at 6AM",
+        "Description": "Moraine Lake at 6AM",
+        "Website": "https://unsplash.com/photos/landscape-photography-of-snowy-mountains-gdQnsMbhkUs"
+    }
+}

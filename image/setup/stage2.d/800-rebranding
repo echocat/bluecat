@@ -12,7 +12,7 @@ else
   dnf -y install generic-logos
 fi
 
-echo "==> Default browser: removing Firefox RPM (Brave Flatpak installed on first boot)"
+echo "==> Default browser: removing Firefox RPM (Brave RPM installed in image)"
 if rpm -q firefox >/dev/null 2>&1; then
   # Use dnf remove, not rpm-ostree override remove, to avoid persistent
   # overrides that would break later transactions.
@@ -24,7 +24,6 @@ fi
 echo "==> Enabling bluecat first-boot services"
 systemctl preset \
   bluecat-add-flathub.service \
-  bluecat-install-brave.service \
   enroll-echocat-mok.service
 
 echo "==> Rebranding: rewriting os-release"
@@ -98,3 +97,26 @@ else
   echo "    NOTE: no staged Plymouth watermark (${plymouth_source}); run 'mise branding'" \
        "and commit the generated image/rootfs/ assets."
 fi
+
+echo "==> Rebranding: applying bluecat background defaults"
+backgrounds_dir="/usr/share/backgrounds"
+wallpapers_dir="/usr/share/wallpapers"
+backgrounds_images_dir="${backgrounds_dir}/images"
+
+install -d -m 0755 "${backgrounds_images_dir}"
+rm -f \
+  "${backgrounds_dir}/default.xml" \
+  "${backgrounds_dir}/default.jxl" \
+  "${backgrounds_dir}/default-dark.jxl" \
+  "${backgrounds_images_dir}"/*
+
+ln -sf ../bluecat/backgrounds/default.xml "${backgrounds_dir}/default.xml"
+ln -sf images/default.jxl "${backgrounds_dir}/default.jxl"
+ln -sf images/default-dark.jxl "${backgrounds_dir}/default-dark.jxl"
+ln -sf ../../wallpapers/unsplash_gdQnsMbhkUs/contents/images/3840x2160.jxl \
+  "${backgrounds_images_dir}/default.jxl"
+ln -sf ../../wallpapers/unsplash_xFjAftU8lMY/contents/images/3840x2160.jxl \
+  "${backgrounds_images_dir}/default-dark.jxl"
+
+rm -f "${wallpapers_dir}/Default"
+ln -sf bluecat "${wallpapers_dir}/Default"

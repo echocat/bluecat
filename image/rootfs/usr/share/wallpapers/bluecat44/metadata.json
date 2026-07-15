@@ -1,0 +1,23 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "bluecat authors",
+                "Website": "https://bluecat.echocat.org/"
+            },
+            {
+                "Name": "Redd Francisco",
+                "Website": "https://reddfrancisco.com/"
+            },
+            {
+                "Name": "Nick Scheerbart",
+                "Website": "https://www.instagram.com/nck__/"
+            }
+        ],
+        "Id": "bluecat",
+        "License": "MIT, LicenseRef-Unsplash",
+        "Name": "bluecat",
+        "Description": "Combined version of 'Moraine Lake at 6AM' (unsplash_gdQnsMbhkUs) and 'Suspension bridge in a forest' (unsplash_xFjAftU8lMY).",
+        "Website": "https://bluecat.echocat.org/"
+    }
+}

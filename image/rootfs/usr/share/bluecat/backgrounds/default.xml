@@ -1,0 +1,32 @@
+<background>
+  <starttime>
+    <year>2026</year>
+    <month>04</month>
+    <day>14</day>
+    <hour>8</hour>
+    <minute>00</minute>
+    <second>00</second>
+  </starttime>
+
+  <static>
+    <duration>36000.0</duration>
+    <file>/usr/share/wallpapers/unsplash_gdQnsMbhkUs/contents/images/3840x2160.jxl</file>
+  </static>
+
+  <transition type="overlay">
+    <duration>7200.0</duration>
+    <from>/usr/share/wallpapers/unsplash_gdQnsMbhkUs/contents/images/3840x2160.jxl</from>
+    <to>/usr/share/wallpapers/unsplash_xFjAftU8lMY/contents/images/3840x2160.jxl</to>
+  </transition>
+
+  <static>
+    <duration>36000.0</duration>
+    <file>/usr/share/wallpapers/unsplash_xFjAftU8lMY/contents/images/3840x2160.jxl</file>
+  </static>
+
+  <transition type="overlay">
+    <duration>7200.0</duration>
+    <from>/usr/share/wallpapers/unsplash_xFjAftU8lMY/contents/images/3840x2160.jxl</from>
+    <to>/usr/share/wallpapers/unsplash_gdQnsMbhkUs/contents/images/3840x2160.jxl</to>
+  </transition>
+</background>

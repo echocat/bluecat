@@ -124,37 +124,35 @@
           </article>
           <article class="card">
             <span class="card__index">04</span>
-            <h3>Developer tools</h3>
+            <h3>Desktop</h3>
             <p>
-              Distrobox, Nix, Flathub, Brave, RustDesk, virtualization packages,
-              diagnostics and common desktop utilities are ready after install.
+              Brave, RustDesk, Flathub and common desktop utilities are included alongside
+              hardware, security and storage tools.
             </p>
-            <div class="card__links" aria-label="Developer and desktop links">
-              <a href="https://flathub.org/">Flathub</a>
+            <div class="card__links" aria-label="Desktop links">
               <a href="https://brave.com/">Brave</a>
-              <a href="https://nixos.org/">Nix</a>
-              <a href="https://distrobox.it/">Distrobox</a>
               <a href="https://rustdesk.com/">RustDesk</a>
-              <a href="https://www.qemu.org/">QEMU/KVM</a>
-              <a href="https://virt-manager.org/">virt-manager</a>
-              <a href="https://libvirt.org/">libvirt</a>
+              <a href="https://flathub.org/">Flathub</a>
               <a href="https://www.yubico.com/">YubiKey</a>
               <a href="https://fidoalliance.org/fido2/">FIDO2</a>
-              <a href="https://rclone.org/">rclone</a>
               <a href="https://github.com/Aorimn/dislocker">dislocker</a>
+              <a href="https://github.com/storaged-project/blivet-gui">blivet-gui</a>
             </div>
           </article>
           <article class="card">
             <span class="card__index">05</span>
-            <h3>Offline installer</h3>
+            <h3>Developer tools</h3>
             <p>
-              The rolling ISO embeds the local OCI payload, so the initial deployment does not need a registry pull.
-              See the <a href="#install">install section</a> for USB imaging details.
+              Distrobox, Nix, rclone and virtualization tooling are ready for development,
+              containers and lab workflows.
             </p>
-            <div class="card__links" aria-label="Installer links">
-              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso">ISO</a>
-              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.sha256">SHA256</a>
-              <a href="https://download.bluecat.echocat.org/latest/bluecat.iso.md5">MD5</a>
+            <div class="card__links" aria-label="Developer links">
+              <a href="https://nixos.org/">Nix</a>
+              <a href="https://distrobox.it/">Distrobox</a>
+              <a href="https://rclone.org/">rclone</a>
+              <a href="https://www.qemu.org/">QEMU/KVM</a>
+              <a href="https://virt-manager.org/">virt-manager</a>
+              <a href="https://libvirt.org/">libvirt</a>
             </div>
           </article>
           <article class="card card--outline">
@@ -164,9 +162,11 @@
               xone driver is included,
               but Xbox Wireless Adapter firmware is never bundled;
               <a href="https://github.com/echocat/bluecat/blob/main/docs/xbox-firmware.md">bluecat only downloads it after local user confirmation</a>.
+              LUKS TPM2 autounlock is also available as <a href="https://github.com/echocat/bluecat/blob/main/docs/luks-tpm2.md">an explicit local opt-in</a>.
             </p>
             <div class="card__links" aria-label="Opt-in links">
               <a href="https://github.com/medusalix/xone">xone</a>
+              <a href="https://github.com/echocat/bluecat/blob/main/docs/luks-tpm2.md">LUKS TPM2 autounlock</a>
             </div>
           </article>
         </div>
@@ -228,13 +228,15 @@ sudo systemctl reboot</code></pre>
       </section>
 
       <section class="section note" aria-labelledby="legal-title">
-        <h2 id="legal-title">Unofficial remix, clear boundaries.</h2>
-        <p>
-          bluecat is not affiliated with, endorsed by, or produced by the Fedora Project or Red Hat, Inc.
-          It may include proprietary NVIDIA components from RPM Fusion nonfree and can optionally download
-          Microsoft Xbox Wireless Adapter firmware after explicit local user consent.
-        </p>
-        <a href="https://github.com/echocat/bluecat/blob/main/docs/legal.md">Read legal notes</a>
+        <article>
+          <h2 id="legal-title">Unofficial remix, clear boundaries.</h2>
+          <p>
+            bluecat is not affiliated with, endorsed by, or produced by the Fedora Project or Red Hat, Inc.
+            It may include proprietary NVIDIA components from RPM Fusion nonfree and can optionally download
+            Microsoft Xbox Wireless Adapter firmware after explicit local user consent.
+          </p>
+          <a href="https://github.com/echocat/bluecat/blob/main/docs/legal.md">Read legal notes</a>
+        </article>
       </section>
     </main>
   </body>

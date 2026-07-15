@@ -61,10 +61,12 @@ an explicit user action**. See [`docs/xbox-firmware.md`](docs/xbox-firmware.md).
 ## Flathub and Brave
 
 The image enables the **Flathub** Flatpak repository (<https://flathub.org/>)
-system-wide on first boot and installs the **Brave** browser
-(`com.brave.Browser`) from it. Nothing from Flathub is bundled into the image;
-the remote is added and the app is installed **on the target system at first
-boot**.
+system-wide on first boot. Nothing from Flathub is bundled into the image; the
+remote is added on the target system at first boot.
+
+The image installs the **Brave** browser from the official Brave RPM repository
+during image creation. RPM signatures are verified against Brave's RPM signing
+key before packages are installed into the image.
 
 - Flathub applications are provided by **third parties** under their **own
   licenses and terms**; this project's MIT license does **not** apply to them.
