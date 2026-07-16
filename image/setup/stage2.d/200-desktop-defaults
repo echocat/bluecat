@@ -19,6 +19,7 @@ dnf5 install -y \
   htop \
   mc \
   dislocker \
+  onedrive \
   rclone \
   make \
   git \
