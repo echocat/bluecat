@@ -1,0 +1,9 @@
+[Unit]
+Description=Prepare writable Nix store
+RequiresMountsFor=/var
+Before=nix-setup.service nix-daemon.service nix-daemon.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/nix-prepare
+RemainAfterExit=yes

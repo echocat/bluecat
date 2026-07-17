@@ -29,6 +29,6 @@ fi
 
 echo "==> Display manager: enabling SDDM and writable theme bind mount"
 # Keep Plasma Login installed and switchable, but make SDDM the active display manager.
-systemctl disable plasmalogin.service plasma-login-manager.service plasma-login.service plasma-setup.service 2>/dev/null || true
-systemctl mask plasma-setup.service
+systemctl disable plasmalogin.service plasma-login-manager.service plasma-login.service 2>/dev/null || true
+systemctl unmask plasma-setup.service 2>/dev/null || true
 systemctl enable --force NetworkManager.service sddm.service usr-share-sddm-themes.mount

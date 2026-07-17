@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target="/var/lib/containers"
+parent="/var/lib"
+subvolume="containers"
+top_mount=""
+
+cleanup_top_mount() {
+  if [[ -n "${top_mount}" && -d "${top_mount}" ]]; then
+    if mountpoint -q "${top_mount}"; then
+      umount "${top_mount}"
+    fi
+    rmdir "${top_mount}" 2>/dev/null || true
+  fi
+}
+trap cleanup_top_mount EXIT
+
+btrfs_device_for_var() {
+  local source
+  local fstype
+
+  fstype="$(findmnt -n -o FSTYPE --target /var 2>/dev/null || true)"
+  [[ "${fstype}" == btrfs ]] || return 1
+  command -v btrfs >/dev/null 2>&1 || return 1
+
+  source="$(findmnt -n -o SOURCE --target /var 2>/dev/null || true)"
+  [[ -n "${source}" ]] || return 1
+  printf '%s\n' "${source%%[*}"
+}
+
+create_directory() {
+  install -d -m 0700 "${target}"
+}
+
+has_container_state() {
+  local path
+  local rel
+
+  while IFS= read -r -d '' path; do
+    rel="${path#"${target}/"}"
+
+    case "${rel}" in
+      sigstore|storage|storage/tmp)
+        [[ -d "${path}" ]] || return 0
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  done < <(find "${target}" -mindepth 1 -maxdepth 3 -print0)
+
+  return 1
+}
+
+mount_top_level_subvolume() {
+  local device="$1"
+
+  top_mount="$(mktemp -d /run/bluecat-containers-btrfs.XXXXXX)" || return 1
+  mount -t btrfs -o subvolid=5 "${device}" "${top_mount}" || return 1
+
+  if [[ ! -e "${top_mount}/${subvolume}" ]]; then
+    btrfs subvolume create "${top_mount}/${subvolume}" || return 1
+  elif ! btrfs subvolume show "${top_mount}/${subvolume}" >/dev/null 2>&1; then
+    echo "WARNING: top-level ${subvolume} exists but is not a btrfs subvolume" >&2
+    return 1
+  fi
+
+  chmod 0700 "${top_mount}/${subvolume}" || return 1
+  umount "${top_mount}" || return 1
+  rmdir "${top_mount}" || return 1
+  top_mount=""
+
+  mount -t btrfs -o "subvol=${subvolume},compress=zstd:1" "${device}" "${target}" || return 1
+}
+
+install -d -m 0755 "${parent}"
+
+if mountpoint -q "${target}"; then
+  chmod 0700 "${target}"
+  exit 0
+fi
+
+if [[ -e "${target}" ]]; then
+  if [[ -d "${target}" ]]; then
+    if has_container_state; then
+      chmod 0700 "${target}"
+      exit 0
+    fi
+  else
+    echo "WARNING: ${target} exists but is not a directory; leaving it unchanged" >&2
+    exit 0
+  fi
+else
+  create_directory
+fi
+
+if device="$(btrfs_device_for_var)"; then
+  if mount_top_level_subvolume "${device}"; then
+    exit 0
+  fi
+
+  echo "WARNING: could not mount ${target} from a top-level btrfs subvolume; leaving it as a directory" >&2
+fi
+
+chmod 0700 "${target}"

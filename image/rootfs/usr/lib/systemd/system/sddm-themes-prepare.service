@@ -6,5 +6,5 @@ Before=usr-share-sddm-themes.mount
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/bluecat/prepare-sddm-themes
+ExecStart=/usr/libexec/prepare-sddm-themes
 RemainAfterExit=yes

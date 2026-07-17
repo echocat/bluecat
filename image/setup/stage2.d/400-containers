@@ -10,3 +10,7 @@ if rpm -q toolbox >/dev/null 2>&1; then
 else
   echo "    toolbox not installed; nothing to remove"
 fi
+
+# Keep the deployed image free of rootful Podman bootstrap state so the
+# first-boot prepare service can mount /var/lib/containers as a Btrfs subvolume.
+rm -rf /var/lib/containers

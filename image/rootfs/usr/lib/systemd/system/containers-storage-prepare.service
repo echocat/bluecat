@@ -1,0 +1,14 @@
+[Unit]
+Description=Prepare rootful containers storage
+DefaultDependencies=no
+RequiresMountsFor=/var
+After=local-fs.target
+Before=systemd-tmpfiles-setup.service podman.service podman.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/containers-storage-prepare
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

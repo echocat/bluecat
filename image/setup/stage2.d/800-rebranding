@@ -23,7 +23,8 @@ fi
 
 echo "==> Enabling bluecat first-boot services"
 systemctl preset \
-  bluecat-add-flathub.service \
+  add-flathub.service \
+  containers-storage-prepare.service \
   enroll-echocat-mok.service
 
 echo "==> Rebranding: rewriting os-release"

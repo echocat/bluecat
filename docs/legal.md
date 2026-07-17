@@ -40,7 +40,7 @@ project's intent and the boundaries between the components.
 - This image enables the **Flathub** Flatpak repository (<https://flathub.org/>)
   system-wide on first boot, **unfiltered** (the full catalog, not the curated
   subset Fedora ships). The Flathub remote definition is added on first boot by
-  `bluecat-add-flathub.service`; nothing from Flathub is bundled into the image.
+  `add-flathub.service`; nothing from Flathub is bundled into the image.
 - Flathub hosts applications from **third parties**, including proprietary
   software. Each application carries its **own license and terms**; this project
   neither authors, redistributes, nor vets those applications. Users are

@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target="/nix"
+fallback_target="/var/nix"
+subvolume="nix"
+top_mount=""
+
+cleanup_top_mount() {
+  if [[ -n "${top_mount}" && -d "${top_mount}" ]]; then
+    if mountpoint -q "${top_mount}"; then
+      umount "${top_mount}"
+    fi
+    rmdir "${top_mount}" 2>/dev/null || true
+  fi
+}
+trap cleanup_top_mount EXIT
+
+btrfs_device_for_var() {
+  local source
+  local fstype
+
+  fstype="$(findmnt -n -o FSTYPE --target /var 2>/dev/null || true)"
+  [[ "${fstype}" == btrfs ]] || return 1
+  command -v btrfs >/dev/null 2>&1 || return 1
+
+  source="$(findmnt -n -o SOURCE --target /var 2>/dev/null || true)"
+  [[ -n "${source}" ]] || return 1
+  printf '%s\n' "${source%%[*}"
+}
+
+mount_top_level_subvolume() {
+  local device="$1"
+
+  top_mount="$(mktemp -d /run/bluecat-nix-btrfs.XXXXXX)" || return 1
+  mount -t btrfs -o subvolid=5 "${device}" "${top_mount}" || return 1
+
+  if [[ ! -e "${top_mount}/${subvolume}" ]]; then
+    btrfs subvolume create "${top_mount}/${subvolume}" || return 1
+  elif ! btrfs subvolume show "${top_mount}/${subvolume}" >/dev/null 2>&1; then
+    echo "WARNING: top-level ${subvolume} exists but is not a btrfs subvolume" >&2
+    return 1
+  fi
+
+  chmod 0755 "${top_mount}/${subvolume}" || return 1
+  umount "${top_mount}" || return 1
+  rmdir "${top_mount}" || return 1
+  top_mount=""
+
+  mount -t btrfs -o "subvol=${subvolume},compress=zstd:1" "${device}" "${target}" || return 1
+}
+
+fallback_bind_mount() {
+  install -d -m 0755 /var "${fallback_target}"
+  mount --bind "${fallback_target}" "${target}"
+}
+
+if mountpoint -q "${target}"; then
+  exit 0
+fi
+
+install -d -m 0755 "${target}"
+
+if device="$(btrfs_device_for_var)"; then
+  if mount_top_level_subvolume "${device}"; then
+    exit 0
+  fi
+
+  echo "WARNING: could not mount ${target} from a top-level btrfs subvolume; falling back to ${fallback_target}" >&2
+fi
+
+fallback_bind_mount

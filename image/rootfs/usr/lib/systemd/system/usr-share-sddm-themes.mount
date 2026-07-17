@@ -1,8 +1,8 @@
 [Unit]
 Description=Writable SDDM themes bind mount
 DefaultDependencies=no
-Requires=bluecat-sddm-themes-prepare.service
-After=bluecat-sddm-themes-prepare.service
+Requires=sddm-themes-prepare.service
+After=sddm-themes-prepare.service
 Before=sddm.service display-manager.service
 
 [Mount]

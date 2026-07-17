@@ -3,3 +3,11 @@ set -euo pipefail
 
 echo "==> Nix package manager (multi-user daemon)"
 dnf5 install -y nix nix-daemon
+
+# Keep the /nix mountpoint but remove package-created bootstrap contents so the
+# first-boot prepare service can mount the writable Nix store there.
+shopt -s nullglob dotglob
+nix_contents=(/nix/*)
+if (( ${#nix_contents[@]} > 0 )); then
+  rm -rf "${nix_contents[@]}"
+fi
