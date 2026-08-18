@@ -101,6 +101,7 @@ jobs:
       - name: Build Image
         env:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          PODMAN_CGROUP_MANAGER: cgroupfs
         run: mise build:image
 
       - name: Build Chunked Image
